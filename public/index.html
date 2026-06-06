@@ -17,8 +17,8 @@
   --border:  rgba(0,0,0,0.08);
   --border2: rgba(0,0,0,0.15);
   --text:    #1a1410;
-  --text2:   #6b5f52;
-  --text3:   #9e9188;
+  --text2:   #4f453b;
+  --text3:   #74685d;
   /* accent — Claude's warm orange-brown */
   --accent:      #c96a2a;
   --accent2:     #a8561f;
@@ -38,7 +38,7 @@
   --shadow:   0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:14px;line-height:1.6;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:15px;line-height:1.7;min-height:100vh;font-weight:400}
 code,pre,.mono{font-family:'DM Mono',monospace}
 
 /* LAYOUT */
@@ -51,7 +51,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .logo-mark{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-weight:500}
 .logo-title{font-size:15px;font-weight:700;color:var(--text)}
 .nav{padding:10px 0;flex:1}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;color:var(--text2);font-size:13px;transition:all 0.12s;border-radius:8px;margin:1px 8px;border-left:none}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 18px;cursor:pointer;color:var(--text2);font-size:14px;transition:all 0.12s;border-radius:8px;margin:1px 8px;border-left:none}
 .nav-item:hover{background:var(--bg3);color:var(--text)}
 .nav-item.active{background:var(--accent-dim);color:var(--accent);font-weight:500}
 .nav-item.active .nav-icon{color:var(--accent)}
@@ -60,7 +60,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 
 /* TOP BAR */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:10}
-.page-title{font-size:17px;font-weight:700;color:var(--text)}
+.page-title{font-size:19px;font-weight:700;color:var(--text)}
 .topbar-actions{display:flex;gap:8px}
 .btn{padding:7px 16px;border-radius:8px;border:none;cursor:pointer;font-size:12px;font-family:'Noto Sans JP',sans-serif;font-weight:500;transition:all 0.12s}
 .btn-primary{background:var(--accent);color:#fff}
@@ -75,7 +75,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 
 /* CARDS */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:14px;box-shadow:var(--shadow)}
-.card-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px}
+.card-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px}
 
 /* KPI ROW */
 .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
@@ -119,8 +119,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .check-item.checked .checkbox{background:var(--ok);border-color:var(--ok)}
 .check-mark{color:#fff;font-size:10px;font-weight:700}
 .item-body{flex:1;min-width:0}
-.item-title{font-size:13px;color:var(--text);margin-bottom:2px;font-weight:500}
-.item-why{font-size:11px;color:var(--text2);line-height:1.5}
+.item-title{font-size:14px;color:var(--text);margin-bottom:3px;font-weight:700}
+.item-why{font-size:12px;color:var(--text2);line-height:1.6}
+.item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
+.score-pill{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-dim);color:var(--accent);font-weight:700}
 .tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
 .tag{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:500}
 .tag-ldl{background:rgba(201,106,42,0.12);color:#8a4510}
@@ -142,6 +144,13 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .form-group input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;font-family:'Noto Sans JP',sans-serif;transition:border-color 0.12s;outline:none}
 .form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
 .form-group input::placeholder{color:var(--text3)}
+.form-group textarea,.coach-question{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;font-family:'Noto Sans JP',sans-serif;line-height:1.6;resize:vertical;min-height:110px;outline:none}
+.form-group textarea:focus,.coach-question:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.coach-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:14px}
+.coach-answer{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;white-space:pre-wrap;line-height:1.8;color:var(--text);min-height:180px}
+.coach-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.coach-chip{border:1px solid var(--border2);background:var(--bg2);color:var(--text2);border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
+.coach-chip:hover{background:var(--accent-dim);color:var(--accent)}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -215,12 +224,39 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .badge-warn{background:var(--warn-dim);color:var(--warn)}
 .badge-danger{background:var(--danger-dim);color:var(--danger)}
 
+/* DAILY COACH DASHBOARD */
+.coach-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.score-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow)}
+.score-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.score-title{font-size:13px;font-weight:700;color:var(--text)}
+.score-number{font-family:'DM Mono',monospace;font-size:22px;font-weight:700}
+.metric-score{margin-bottom:12px}
+.metric-score-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:10px}
+.metric-score-name{font-size:13px;font-weight:700;color:var(--text)}
+.metric-score-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:700}
+.priority-item{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}
+.priority-item:last-child{border-bottom:none}
+.priority-rank{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--accent)}
+.priority-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.45}
+.priority-reason{font-size:12px;color:var(--text2);line-height:1.55;margin-top:2px}
+.priority-score{font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);font-weight:700;white-space:nowrap}
+.time-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.time-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow)}
+.time-card.missing{border-color:rgba(192,57,43,0.25);background:rgba(192,57,43,0.035)}
+.time-label{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px}
+.time-status{font-size:12px;color:var(--text2);line-height:1.45;margin-top:6px}
+.time-missing{font-size:12px;color:var(--danger);line-height:1.5;margin-top:6px}
+.time-score{font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--text)}
+.day-diagnosis{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow);font-size:13px;color:var(--text2);line-height:1.7}
+
 @media(max-width:900px){
   .sidebar{width:56px}
   .nav-item span:not(.nav-icon){display:none}
   .logo-title,.logo-mark{display:none}
   .kpi-grid{grid-template-columns:repeat(3,1fr)}
   .chart-grid,.two-col{grid-template-columns:1fr}
+  .coach-summary-grid,.time-grid{grid-template-columns:1fr}
+  .coach-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr 1fr}
 }
 </style>
@@ -240,6 +276,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="nav-item" onclick="sw('analysis')"><span class="nav-icon">🔍</span><span>問題を発見</span></div>
     <div class="nav-item" onclick="sw('impact')"><span class="nav-icon">🔗</span><span>影響マップ</span></div>
     <div class="nav-item" onclick="sw('sim')"><span class="nav-icon">⚠️</span><span>サボり影響</span></div>
+    <div class="nav-item" onclick="sw('coach')"><span class="nav-icon">💬</span><span>伴走相談</span></div>
     <div class="nav-item" onclick="sw('trends')"><span class="nav-icon">📈</span><span>トレンド</span></div>
     <div class="nav-item" onclick="sw('history')"><span class="nav-icon">📅</span><span>達成履歴</span></div>
     <div class="nav-item" onclick="sw('settings')"><span class="nav-icon">⚙️</span><span>設定・保存</span></div>
@@ -260,6 +297,24 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="progress" style="height:4px;margin-bottom:20px"><div class="progress-fill" id="main-prog" style="width:0%;background:var(--accent)"></div></div>
     <div id="alert-zone" style="margin-bottom:16px"></div>
     <div class="kpi-grid" id="kpi-row"></div>
+    <div id="daily-diagnosis" class="day-diagnosis"></div>
+    <div class="coach-summary-grid">
+      <div class="score-panel">
+        <div class="score-head">
+          <div class="score-title">検査値別 改善スコア</div>
+          <div class="score-number" id="total-score">0%</div>
+        </div>
+        <div id="metric-score-body"></div>
+      </div>
+      <div class="score-panel">
+        <div class="score-head">
+          <div class="score-title">今日やるべき優先順位</div>
+          <div class="score-number" id="priority-count">0件</div>
+        </div>
+        <div id="priority-body"></div>
+      </div>
+    </div>
+    <div class="time-grid" id="time-summary"></div>
     <div id="routine-body"></div>
   </div>
 </div>
@@ -354,6 +409,51 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="card">
       <div class="card-title">現在サボっている項目と影響</div>
       <div id="skip-items"></div>
+    </div>
+    <div class="section-spacer"></div>
+  </div>
+</div>
+
+<!-- COACH -->
+<div id="page-coach" class="page">
+  <div class="topbar"><div class="page-title">💬 伴走相談</div></div>
+  <div style="padding:0 32px">
+    <div class="coach-grid">
+      <div class="card">
+        <div class="card-title">Geminiに相談する</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px">
+          直近30日分の記録と目標値をもとに、今日やること・さぼってよいことを整理します。医療判断ではなく生活ログの整理です。
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label>相談内容</label>
+          <textarea id="coach-question" class="coach-question" placeholder="例: 今日は疲れていて全部は無理です。血圧と尿酸値を悪化させないために、最低限なにをすればいいですか？"></textarea>
+        </div>
+        <div class="coach-chip-row">
+          <button class="coach-chip" onclick="setCoachPrompt('今日は疲れていて全部は無理です。最低限やることと、さぼっていいことを教えてください。')">今日は最低限</button>
+          <button class="coach-chip" onclick="setCoachPrompt('今週の記録から、数値改善に効きそうなことを優先順位で教えてください。')">今週レビュー</button>
+          <button class="coach-chip" onclick="setCoachPrompt('飲み会や外食がある日です。尿酸値・血圧・体重を悪化させにくい立ち回りを教えてください。')">飲み会/外食</button>
+          <button class="coach-chip" onclick="setCoachPrompt('最近さぼりがちです。完璧を目指さず立て直す作戦を作ってください。')">立て直し</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-primary" onclick="askCoach('today')" id="coach-btn">相談する</button>
+          <span id="coach-msg" style="font-size:12px;color:var(--text2)"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">AIなしの簡易ヒント</div>
+        <div id="coach-local"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">回答</div>
+      <div id="coach-answer" class="coach-answer">相談内容を入力して「相談する」を押してください。</div>
+    </div>
+    <div class="alert-box info">
+      <div class="alert-icon">ℹ️</div>
+      <div class="alert-body">
+        <div class="alert-title">注意</div>
+        <div class="alert-desc">この機能は診断や治療判断ではありません。数値が大きく悪い、症状がある、薬や治療の相談が必要な場合は医師に相談してください。</div>
+      </div>
     </div>
     <div class="section-spacer"></div>
   </div>
@@ -509,6 +609,34 @@ const CATS = {
   night:   {label:'🌙 夜のルーティーン', color:'#2563a8'},
 };
 
+const ACTIVITY_TARGETS = {
+  water_am:'朝9時まで: 水1杯',
+  bp_meas:'朝9時まで: 血圧・体重',
+  walk_am:'朝9時まで: 15分以上',
+  veg_first:'毎食: 最初の5分は野菜',
+  steps_10k:'1日合計: 10,000歩',
+  squat:'夕方まで: 20回',
+  pushup:'夕方まで: 15回',
+  hourly_walk:'昼間: 1時間ごとに1,000歩',
+  water_15:'1日合計: 1.5L以上',
+  no_fried:'昼・夜: 揚げ物ゼロ',
+  chew_well:'毎食: 20回以上噛む',
+  seaweed:'昼か夜: 1品',
+  fish:'昼か夜: 1品',
+  light_din:'夜: 腹八分目',
+  no_snack:'昼間: 間食なし',
+  no_alc:'夜: アルコールなし',
+  no_eat_20:'夜20時以降: 食べない',
+  sleep7:'夜: 7時間以上'
+};
+
+const TIME_BLOCKS = [
+  {key:'am', label:'朝9時まで', target:'起床後の土台', ids:['water_am','bp_meas','walk_am','veg_first']},
+  {key:'noon', label:'昼12時', target:'食事と水分', ids:['veg_first','water_15','chew_well','seaweed','fish','no_snack']},
+  {key:'pm', label:'夕3時', target:'活動量の帳尻', ids:['steps_10k','squat','pushup','hourly_walk','water_15']},
+  {key:'night', label:'夜', target:'悪化を止める', ids:['light_din','no_alc','no_eat_20','sleep7','no_fried']}
+];
+
 const DEFAULT_GOALS = {wt:83,sbp:125,ldl:119,ua:7.0,hba1c:5.5,steps:10000};
 const BASELINE = {wt:89.2,sbp:128,ldl:179,ua:8.1,hba1c:6.1,fg:109,steps:0,slp:0};
 const METRIC_INFO = {
@@ -620,16 +748,18 @@ function fmtShort(s){const[,m,d]=s.split('-');return `${parseInt(m)}/${parseInt(
 
 // ========== NAV ==========
 function sw(name){
+  const names=['today','record','analysis','impact','sim','coach','trends','history','settings'];
   document.querySelectorAll('.nav-item').forEach((el,i)=>{
-    el.classList.toggle('active',['today','record','analysis','impact','sim','trends','history','settings'][i]===name);
+    el.classList.toggle('active',names[i]===name);
   });
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  if(name==='today'){renderKPIs();renderAlerts();renderRoutine()}
+  if(name==='today'){renderKPIs();renderAlerts();renderTodayDashboard();renderRoutine()}
   if(name==='record'){renderRec()}
   if(name==='analysis'){renderAnalysis()}
   if(name==='impact'){renderImpact()}
   if(name==='sim'){renderSim()}
+  if(name==='coach'){renderCoach()}
   if(name==='trends'){renderTrends()}
   if(name==='history'){renderHistory()}
   if(name==='settings'){renderSettings()}
@@ -693,6 +823,155 @@ function renderAlerts(){
   });
 }
 
+// ========== DAILY SCORE / PRIORITY ==========
+function metricDataKey(metric){
+  return metric==='bp'?'sbp':metric==='weight'?'wt':metric;
+}
+
+function metricGoal(metric){
+  const key=metricDataKey(metric);
+  return GOALS[key] || METRIC_INFO[key]?.warn || 100;
+}
+
+function metricLabel(metric){
+  return {ldl:'LDL',ua:'尿酸値',hba1c:'HbA1c',bp:'血圧',weight:'体重',sleep:'睡眠'}[metric] || metric;
+}
+
+function metricColor(metric){
+  return {ldl:'#c96a2a',ua:'#b07820',hba1c:'#c0392b',bp:'#2563a8',weight:'#2a7a4b',sleep:'#7c5cbf'}[metric] || 'var(--accent)';
+}
+
+function metricUrgency(metric){
+  if(metric==='sleep') return 1;
+  const key=metricDataKey(metric);
+  const val=getLatestVal(key);
+  const goal=metricGoal(metric);
+  if(!val || !goal) return 1;
+  const over=(val-goal)/goal;
+  if(over>=0.25) return 2.2;
+  if(over>=0.12) return 1.8;
+  if(over>0) return 1.35;
+  return 1;
+}
+
+function getMetricScores(){
+  const c=today().c||{};
+  const metrics=['ldl','ua','hba1c','bp','weight'];
+  return metrics.map(metric=>{
+    const rel=ROUTINES.filter(r=>r.affects[metric]);
+    const target=rel.reduce((s,r)=>s+(r.affects[metric]||0),0);
+    const actual=rel.filter(r=>c[r.id]).reduce((s,r)=>s+(r.affects[metric]||0),0);
+    const pct=target?Math.round(actual/target*100):0;
+    return {metric,label:metricLabel(metric),target,actual,pct,color:metricColor(metric)};
+  });
+}
+
+function getPriorityItems(limit=5){
+  const c=today().c||{};
+  return ROUTINES.filter(r=>!c[r.id]).map(r=>{
+    const weighted=Object.entries(r.affects||{}).reduce((sum,[metric,points])=>{
+      return sum + points * metricUrgency(metric);
+    },0);
+    const top=Object.entries(r.affects||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([m])=>metricLabel(m)).join('・');
+    return {...r,weighted,top};
+  }).sort((a,b)=>b.weighted-a.weighted).slice(0,limit);
+}
+
+function renderDailyScore(){
+  const scoreEl=document.getElementById('metric-score-body');
+  const totalEl=document.getElementById('total-score');
+  if(!scoreEl || !totalEl)return;
+  const scores=getMetricScores();
+  const totalTarget=scores.reduce((s,m)=>s+m.target,0);
+  const totalActual=scores.reduce((s,m)=>s+m.actual,0);
+  const totalPct=totalTarget?Math.round(totalActual/totalTarget*100):0;
+  totalEl.textContent=totalPct+'%';
+  totalEl.style.color=totalPct>=80?'var(--ok)':totalPct>=55?'var(--warn)':'var(--danger)';
+  scoreEl.innerHTML=scores.map(m=>{
+    const col=m.pct>=80?'var(--ok)':m.pct>=55?'var(--warn)':'var(--danger)';
+    return `<div class="metric-score">
+      <div class="metric-score-row">
+        <div class="metric-score-name">${m.label}</div>
+        <div class="metric-score-val" style="color:${col}">${m.actual}/${m.target}点 ${m.pct}%</div>
+      </div>
+      <div class="progress"><div class="progress-fill" style="width:${m.pct}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderPriority(){
+  const body=document.getElementById('priority-body');
+  const count=document.getElementById('priority-count');
+  if(!body || !count)return;
+  const items=getPriorityItems(5);
+  count.textContent=items.length+'件';
+  if(!items.length){
+    body.innerHTML='<div style="font-size:13px;color:var(--ok);line-height:1.7">今日の優先項目はすべて完了です。ここまで来たら、夜に食べすぎないことだけ守れば十分です。</div>';
+    return;
+  }
+  body.innerHTML=items.map((r,i)=>{
+    const score=Math.round(r.weighted);
+    return `<div class="priority-item">
+      <div class="priority-rank">#${i+1}</div>
+      <div>
+        <div class="priority-title">${r.label}</div>
+        <div class="priority-reason">主に ${r.top} に効く。目標: ${ACTIVITY_TARGETS[r.id]||'今日中に実行'}</div>
+      </div>
+      <div class="priority-score">${score}点</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTimeSummary(){
+  const el=document.getElementById('time-summary');
+  if(!el)return;
+  const c=today().c||{};
+  el.innerHTML=TIME_BLOCKS.map(block=>{
+    const routines=block.ids.map(id=>ROUTINES.find(r=>r.id===id)).filter(Boolean);
+    const done=routines.filter(r=>c[r.id]);
+    const pct=routines.length?Math.round(done.length/routines.length*100):0;
+    const missing=routines.filter(r=>!c[r.id]).sort((a,b)=>{
+      const sa=Object.values(a.affects||{}).reduce((s,v)=>s+v,0);
+      const sb=Object.values(b.affects||{}).reduce((s,v)=>s+v,0);
+      return sb-sa;
+    }).slice(0,2);
+    const col=pct>=80?'var(--ok)':pct>=50?'var(--warn)':'var(--danger)';
+    return `<div class="time-card ${missing.length?'missing':''}">
+      <div class="time-label">${block.label}</div>
+      <div class="time-score" style="color:${col}">${done.length}/${routines.length}</div>
+      <div class="progress" style="margin-top:6px"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div>
+      <div class="time-status">${block.target}：${pct}%</div>
+      ${missing.length?`<div class="time-missing">不足: ${missing.map(r=>r.label).join(' / ')}</div>`:'<div class="time-status" style="color:var(--ok)">不足なし</div>'}
+    </div>`;
+  }).join('');
+}
+
+function renderDayDiagnosis(){
+  const el=document.getElementById('daily-diagnosis');
+  if(!el)return;
+  const scores=getMetricScores();
+  const weak=scores.filter(s=>s.pct<60).sort((a,b)=>a.pct-b.pct).slice(0,2);
+  const worse=['ldl','ua','hba1c','sbp','wt'].map(k=>{
+    const val=getLatestVal(k);
+    const prev=getPrevVal(k);
+    if(val==null || prev==null)return null;
+    const diff=+(val-prev).toFixed(1);
+    return diff>0?{k,diff,val}:null;
+  }).filter(Boolean);
+  const priority=getPriorityItems(1)[0];
+  const weakText=weak.length?`不足している改善先は ${weak.map(w=>`${w.label}${w.pct}%`).join('、')} です。`:'検査値別の行動スコアはおおむね良好です。';
+  const worseText=worse.length?`悪化傾向: ${worse.map(w=>`${METRIC_INFO[w.k]?.label||w.k}+${w.diff}`).join('、')}。`:'直近比較で大きな悪化は見えていません。';
+  const nextText=priority?`次にやるなら「${priority.label}」が最優先です。`:'今日の主要項目は完了です。';
+  el.innerHTML=`<strong>今日の集計：</strong>${weakText} ${worseText} ${nextText}`;
+}
+
+function renderTodayDashboard(){
+  renderDailyScore();
+  renderPriority();
+  renderTimeSummary();
+  renderDayDiagnosis();
+}
+
 // ========== ROUTINE ==========
 function renderRoutine(){
   const d=today();const c=d.c||{};
@@ -715,6 +994,10 @@ function renderRoutine(){
         <div class="item-body">
           <div class="item-title">${r.label}</div>
           <div class="item-why">${r.why}</div>
+          <div class="item-meta">
+            <span class="score-pill">目標 ${ACTIVITY_TARGETS[r.id]||'今日中'}</span>
+            <span class="score-pill">改善 ${Object.values(r.affects||{}).reduce((s,v)=>s+v,0)}点</span>
+          </div>
           <div class="tags">${tagHtml}</div>
         </div>
       </div>`;
@@ -728,7 +1011,7 @@ async function tog(id){
   const c=today().c;
   c[id]=!c[id];
   await saveDay(todayStr);
-  renderKPIs();renderAlerts();renderRoutine();
+  renderKPIs();renderAlerts();renderTodayDashboard();renderRoutine();
 }
 
 // ========== RECORD ==========
@@ -974,6 +1257,118 @@ function renderSim(){
   }).join('');
 }
 
+// ========== COACH ==========
+function setCoachPrompt(text){
+  const el=document.getElementById('coach-question');
+  if(el)el.value=text;
+}
+
+function renderCoach(){
+  const el=document.getElementById('coach-local');
+  if(!el)return;
+  const hints=coachLocalHints();
+  el.innerHTML=hints.map(h=>`<div class="alert-box ${h.type}">
+    <div class="alert-icon">${h.icon}</div>
+    <div class="alert-body"><div class="alert-title">${h.title}</div><div class="alert-desc">${h.desc}</div></div>
+  </div>`).join('');
+}
+
+function coachLocalHints(){
+  const recent=recentDays(14);
+  const latest={
+    wt:getLatestVal('wt'), sbp:getLatestVal('sbp'), ldl:getLatestVal('ldl'),
+    ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c')
+  };
+  const hints=[];
+  const avgSteps=avgRecent('steps',recent);
+  const avgSleep=avgRecent('slp',recent);
+  const misses=ROUTINES.map(r=>{
+    const miss=recent.filter(d=>!(DB[d]?.c||{})[r.id]).length / Math.max(1,recent.length);
+    return {...r,miss};
+  }).sort((a,b)=>b.miss-a.miss);
+
+  if(latest.sbp>=130 || avgSleep<6.5){
+    hints.push({type:'warn',icon:'💓',title:'血圧優先なら',desc:'今日は「睡眠を削らない」「高塩分を避ける」「水分を取る」のどれか1つで十分です。'});
+  }
+  if(latest.ua>=7 || misses.find(r=>r.id==='water_15')?.miss>0.5){
+    hints.push({type:'warn',icon:'💧',title:'尿酸値優先なら',desc:'運動より先に、水分と飲酒を見ます。水をあと500ml足すだけでも今日の最小ミッションになります。'});
+  }
+  if(latest.ldl>=140 || misses.find(r=>r.id==='no_fried')?.miss>0.5){
+    hints.push({type:'warn',icon:'🥗',title:'LDL優先なら',desc:'今日は揚げ物を避けるだけでOK。歩数や筋トレは無理ならさぼっても優先度は下げられます。'});
+  }
+  if(avgSteps && avgSteps>7000){
+    hints.push({type:'info',icon:'🚶',title:'さぼってOK候補',desc:'歩数はそこそこ取れています。疲れている日は1万歩を狙わず、睡眠や食事のほうを優先してOKです。'});
+  }
+  if(!hints.length){
+    hints.push({type:'info',icon:'📝',title:'まず測るもの',desc:'体重・血圧・歩数・睡眠・飲酒/間食/揚げ物の有無だけで、かなり原因候補が見えます。'});
+  }
+  return hints.slice(0,4);
+}
+
+function recentDays(n){
+  const out=[];
+  const ref=new Date();
+  for(let i=n-1;i>=0;i--){const d=new Date(ref);d.setDate(d.getDate()-i);out.push(fmtD(d))}
+  return out;
+}
+
+function avgRecent(key,days){
+  const vals=days.map(d=>DB[d]?.v?.[key]).filter(v=>typeof v==='number'&&!Number.isNaN(v));
+  return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+}
+
+function buildCoachContext(){
+  const days=recentDays(30);
+  const records=days.map(date=>({date, checks:DB[date]?.c||{}, vitals:DB[date]?.v||{}}))
+    .filter(r=>Object.keys(r.checks).length||Object.keys(r.vitals).length);
+  const missedTop=ROUTINES.map(r=>{
+    const miss=days.filter(d=>!(DB[d]?.c||{})[r.id]).length / days.length;
+    return {id:r.id,label:r.label,tags:r.tags,missRate:+miss.toFixed(2)};
+  }).sort((a,b)=>b.missRate-a.missRate).slice(0,8);
+
+  return {
+    goals: GOALS,
+    latest: {
+      wt:getLatestVal('wt'), sbp:getLatestVal('sbp'), ldl:getLatestVal('ldl'),
+      ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c'), steps:getLatestVal('steps'), slp:getLatestVal('slp')
+    },
+    recentAverages: {
+      steps: avgRecent('steps',days), sleepHours: avgRecent('slp',days),
+      sbp: avgRecent('sbp',days), weight: avgRecent('wt',days)
+    },
+    missedTop,
+    records
+  };
+}
+
+async function askCoach(mode){
+  const q=document.getElementById('coach-question').value.trim();
+  const msg=document.getElementById('coach-msg');
+  const ans=document.getElementById('coach-answer');
+  const btn=document.getElementById('coach-btn');
+  if(!q){msg.textContent='相談内容を入力してください';return}
+  msg.textContent='Geminiに相談中...';
+  btn.disabled=true;
+  ans.textContent='考え中です...';
+  try{
+    const res=await fetch('/api/coach',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mode,question:q,context:buildCoachContext()})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
+    ans.textContent=data.answer;
+    msg.textContent='回答しました';
+  }catch(e){
+    ans.textContent='Gemini連携でエラーが出ました。\n\nCloudflare Workerの「Variables and Secrets」に GEMINI_API_KEY が設定されているか確認してください。\n\nエラー: '+e.message;
+    msg.textContent='エラー';
+  }finally{
+    btn.disabled=false;
+    setTimeout(()=>msg.textContent='',2500);
+  }
+}
+
 // ========== TRENDS ==========
 function killChart(key){if(charts[key]){charts[key].destroy();delete charts[key]}}
 function mkChart(id,type,labels,datasets,opts={}){
@@ -1178,7 +1573,7 @@ window.addEventListener('DOMContentLoaded',async ()=>{
   initSidebar();
   document.getElementById('today-label').textContent=fmtJP(todayStr);
   await loadDB();
-  renderKPIs();renderAlerts();renderRoutine();
+  renderKPIs();renderAlerts();renderTodayDashboard();renderRoutine();
 });
 </script>
 </body>

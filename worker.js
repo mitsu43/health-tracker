@@ -7,6 +7,7 @@
  *   POST /api/day       → 1日分のチェック/バイタルを保存
  *   GET  /api/day/:date → 特定日のデータを返す
  *   POST /api/goals     → 目標値を保存
+ *   POST /api/coach     → Geminiで伴走コメントを生成
  */
 
 export default {
@@ -109,6 +110,25 @@ async function handleAPI(request, url, method, env) {
       return json({ ok: true }, cors);
     }
 
+    // POST /api/coach — Geminiによる伴走コメント
+    if (url.pathname === "/api/coach" && method === "POST") {
+      if (!env.GEMINI_API_KEY) {
+        return json({ error: "GEMINI_API_KEY is not configured" }, cors, 500);
+      }
+
+      const body = await request.json();
+      const question = String(body.question || "").trim().slice(0, 1200);
+      const mode = String(body.mode || "today").slice(0, 40);
+      const context = body.context || {};
+
+      if (!question) {
+        return json({ error: "question is required" }, cors, 400);
+      }
+
+      const answer = await callGemini(env, mode, question, context);
+      return json({ ok: true, answer }, cors);
+    }
+
     return json({ error: "not found" }, cors, 404);
 
   } catch (err) {
@@ -118,4 +138,45 @@ async function handleAPI(request, url, method, env) {
 
 function json(data, headers, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+async function callGemini(env, mode, question, context) {
+  const model = env.GEMINI_MODEL || "gemini-1.5-flash";
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+  const prompt = [
+    "あなたは健康管理アプリの伴走コーチです。",
+    "役割は、ユーザーの生活ログを整理し、最小限の努力で改善しやすい行動を提案することです。",
+    "医師の診断、薬の判断、治療方針の断定はしません。",
+    "異常値、強い症状、継続する不調がある場合は医療機関への相談を促してください。",
+    "回答は日本語で、短く実行しやすくしてください。",
+    "必ず次の見出しを使ってください: 今日の最小ミッション / さぼってOK / 気をつけるサイン / 理由。",
+    "今日の最小ミッションは最大3つまで。完璧主義を避け、優先順位をつけてください。",
+    "",
+    `相談モード: ${mode}`,
+    `ユーザーの相談: ${question}`,
+    "",
+    "直近データと目標値(JSON):",
+    JSON.stringify(context).slice(0, 12000),
+  ].join("\n");
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.35,
+        maxOutputTokens: 900,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini API error ${res.status}: ${errText.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
+    || "回答を生成できませんでした。";
 }

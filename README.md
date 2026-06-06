@@ -102,6 +102,25 @@ https://health-tracker.あなたのサブドメイン.workers.dev
 
 ---
 
+## Gemini伴走相談を使う場合
+
+「伴走相談」タブを使うには、Cloudflare WorkerにGemini APIキーをSecretとして登録します。
+
+1. Google AI StudioなどでGemini APIキーを作成
+2. Cloudflareダッシュボード → **Workers & Pages** → **health-tracker**
+3. **Settings** → **Variables and Secrets**
+4. **Add** → **Secret** を選択
+5. 以下を登録
+   - Name: `GEMINI_API_KEY`
+   - Value: 作成したGemini APIキー
+6. 保存後、必要に応じてGitHub Actionsを再実行
+
+標準では `gemini-1.5-flash` を使います。モデル名を変えたい場合は、あとでWorkerの環境変数 `GEMINI_MODEL` を追加してください。
+
+この機能は診断や治療判断ではなく、記録に基づく生活改善の整理を目的にしています。異常値や症状がある場合は医師に相談してください。
+
+---
+
 ## 日常的な使い方
 
 コードを変更したい場合は `git push origin main` するだけで自動デプロイされる。
