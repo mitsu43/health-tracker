@@ -15,3 +15,13 @@ CREATE TABLE IF NOT EXISTS goals (
 
 -- 初期目標行を挿入（なければ）
 INSERT OR IGNORE INTO goals (id, data) VALUES (1, '{"wt":83,"sbp":125,"ldl":119,"ua":7.0,"hba1c":5.5,"steps":10000}');
+
+-- Gemini相談履歴
+CREATE TABLE IF NOT EXISTS coach_logs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at  TEXT DEFAULT (datetime('now')),
+  mode        TEXT DEFAULT 'today',
+  question    TEXT NOT NULL,
+  answer      TEXT NOT NULL,
+  context     TEXT DEFAULT '{}'
+);

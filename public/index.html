@@ -151,6 +151,11 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .coach-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
 .coach-chip{border:1px solid var(--border2);background:var(--bg2);color:var(--text2);border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
 .coach-chip:hover{background:var(--accent-dim);color:var(--accent)}
+.coach-log{border-top:1px solid var(--border);padding:14px 0}
+.coach-log:first-child{border-top:none;padding-top:0}
+.coach-log-date{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);margin-bottom:6px}
+.coach-log-q{font-size:13px;font-weight:700;color:var(--text);line-height:1.6;margin-bottom:6px}
+.coach-log-a{font-size:12px;color:var(--text2);line-height:1.75;white-space:pre-wrap;background:var(--bg3);border-radius:8px;padding:10px 12px}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -250,14 +255,67 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .day-diagnosis{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow);font-size:13px;color:var(--text2);line-height:1.7}
 
 @media(max-width:900px){
-  .sidebar{width:56px}
-  .nav-item span:not(.nav-icon){display:none}
-  .logo-title,.logo-mark{display:none}
-  .kpi-grid{grid-template-columns:repeat(3,1fr)}
+  body{font-size:16px;line-height:1.75}
+  .app{display:block;height:auto;min-height:100vh;overflow:visible}
+  .sidebar{width:100%;height:auto;position:sticky;top:0;z-index:50;border-right:none;border-bottom:1px solid var(--border)}
+  .logo{display:none}
+  .nav{display:flex;gap:6px;overflow-x:auto;padding:8px 10px;flex:none;scroll-snap-type:x proximity}
+  .nav-item{flex:0 0 auto;margin:0;padding:9px 12px;border-radius:999px;font-size:13px;scroll-snap-align:start;white-space:nowrap;background:var(--bg2);border:1px solid var(--border)}
+  .nav-item span:not(.nav-icon){display:inline}
+  .nav-icon{width:auto;font-size:14px}
+  .sidebar-date{display:none}
+  .main{overflow:visible;min-height:100vh}
+  .topbar{position:static;padding:14px 16px;align-items:flex-start;gap:8px;flex-direction:column}
+  .page-title{font-size:18px;line-height:1.4}
+  .page{padding:16px 0}
+  .page>div[style*="padding:0 32px"],#page-today>div[style*="padding:0 32px"]{padding:0 14px!important}
+  .kpi-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .kpi{padding:13px 14px;border-radius:12px}
+  .kpi-val{font-size:22px}
+  .prog-summary{grid-template-columns:1fr}
   .chart-grid,.two-col{grid-template-columns:1fr}
   .coach-summary-grid,.time-grid{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr 1fr}
+  .card,.score-panel,.problem-card,.chart-card,.time-card{padding:16px;border-radius:12px;margin-bottom:12px}
+  .card-title{font-size:12px;margin-bottom:12px}
+  .check-item{padding:13px 12px;gap:10px;margin-bottom:6px;background:rgba(255,255,255,0.72);border-color:var(--border)}
+  .checkbox{width:22px;height:22px;border-radius:6px}
+  .item-title{font-size:15px;line-height:1.5}
+  .item-why{font-size:12px;line-height:1.65}
+  .item-meta{gap:5px}
+  .score-pill,.tag{font-size:11px;padding:3px 8px}
+  .priority-item{grid-template-columns:30px 1fr;padding:12px 0}
+  .priority-score{grid-column:2;font-size:12px}
+  .priority-title{font-size:15px}
+  .priority-reason{font-size:12px}
+  .time-card{padding:14px}
+  .time-label{font-size:14px}
+  .time-score{font-size:20px}
+  .day-diagnosis{font-size:13px;padding:14px}
+  .form-group input{font-size:16px;padding:11px 12px}
+  .btn{font-size:13px;padding:10px 14px;min-height:40px}
+  .topbar-actions,.streak-row{flex-direction:column}
+  .streak-card{text-align:left}
+  .chart-card div[style*="height:180px"]{height:220px!important}
+  .chart-card div[style*="height:200px"]{height:240px!important}
+}
+
+@media(max-width:520px){
+  .kpi-grid{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+  .score-head{align-items:flex-start;gap:6px;flex-direction:column}
+  .metric-score-row{align-items:flex-start;flex-direction:column;gap:2px}
+  .impact-row{align-items:flex-start;flex-direction:column;gap:6px}
+  .impact-name{width:auto}
+  .impact-track{width:100%;height:10px}
+  .impact-val{text-align:left}
+  .slider-row{align-items:stretch;flex-direction:column;gap:8px}
+  .alert-box{padding:12px;gap:8px}
+  .alert-body .alert-title{font-size:14px}
+  .alert-body .alert-desc{font-size:12px}
+  .cal-grid,.cal-header{gap:3px}
+  .cal-cell{font-size:10px}
 }
 </style>
 </head>
@@ -447,6 +505,13 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="card">
       <div class="card-title">回答</div>
       <div id="coach-answer" class="coach-answer">相談内容を入力して「相談する」を押してください。</div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">相談履歴</div>
+        <button class="btn btn-ghost" onclick="loadCoachLogs()">履歴を更新</button>
+      </div>
+      <div id="coach-log-list" style="font-size:13px;color:var(--text2)">まだ読み込んでいません。</div>
     </div>
     <div class="alert-box info">
       <div class="alert-icon">ℹ️</div>
@@ -1271,6 +1336,7 @@ function renderCoach(){
     <div class="alert-icon">${h.icon}</div>
     <div class="alert-body"><div class="alert-title">${h.title}</div><div class="alert-desc">${h.desc}</div></div>
   </div>`).join('');
+  loadCoachLogs();
 }
 
 function coachLocalHints(){
@@ -1351,7 +1417,7 @@ async function askCoach(mode){
   btn.disabled=true;
   ans.textContent='考え中です...';
   try{
-    const res=await fetch('/api/coach',{
+  const res=await fetch('/api/coach',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({mode,question:q,context:buildCoachContext()})
@@ -1360,6 +1426,7 @@ async function askCoach(mode){
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     ans.textContent=data.answer;
     msg.textContent='回答しました';
+    loadCoachLogs();
   }catch(e){
     ans.textContent='Gemini連携でエラーが出ました。\n\nCloudflare Workerの「Variables and Secrets」に GEMINI_API_KEY が設定されているか確認してください。\n\nエラー: '+e.message;
     msg.textContent='エラー';
@@ -1367,6 +1434,36 @@ async function askCoach(mode){
     btn.disabled=false;
     setTimeout(()=>msg.textContent='',2500);
   }
+}
+
+async function loadCoachLogs(){
+  const el=document.getElementById('coach-log-list');
+  if(!el)return;
+  el.textContent='履歴を読み込んでいます...';
+  try{
+    const res=await fetch('/api/coach/logs');
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
+    const logs=data.logs||[];
+    if(!logs.length){
+      el.textContent='まだ相談履歴はありません。相談するとここに保存されます。';
+      return;
+    }
+    el.innerHTML=logs.map(log=>{
+      const date=(log.created_at||'').replace('T',' ').replace('Z','');
+      return `<div class="coach-log">
+        <div class="coach-log-date">${date}</div>
+        <div class="coach-log-q">Q. ${escapeHTML(log.question||'')}</div>
+        <div class="coach-log-a">${escapeHTML(log.answer||'')}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    el.textContent='相談履歴を読み込めませんでした: '+e.message;
+  }
+}
+
+function escapeHTML(s){
+  return String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
 // ========== TRENDS ==========

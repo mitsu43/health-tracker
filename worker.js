@@ -8,6 +8,7 @@
  *   GET  /api/day/:date → 特定日のデータを返す
  *   POST /api/goals     → 目標値を保存
  *   POST /api/coach     → Geminiで伴走コメントを生成
+ *   GET  /api/coach/logs → Gemini相談履歴を取得
  */
 
 export default {
@@ -126,7 +127,27 @@ async function handleAPI(request, url, method, env) {
       }
 
       const answer = await callGemini(env, mode, question, context);
+      await env.DB.prepare(`
+        INSERT INTO coach_logs (mode, question, answer, context, created_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+      `).bind(
+        mode,
+        question,
+        answer,
+        JSON.stringify(context || {})
+      ).run();
       return json({ ok: true, answer }, cors);
+    }
+
+    // GET /api/coach/logs — 相談履歴を取得
+    if (url.pathname === "/api/coach/logs" && method === "GET") {
+      const rows = await env.DB.prepare(`
+        SELECT id, created_at, mode, question, answer
+        FROM coach_logs
+        ORDER BY id DESC
+        LIMIT 50
+      `).all();
+      return json({ ok: true, logs: rows.results || [] }, cors);
     }
 
     return json({ error: "not found" }, cors, 404);
