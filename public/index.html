@@ -527,6 +527,16 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div class="card">
+      <div class="card-title">一日の終わりレビュー</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px">
+        今日のチェック、数値、未達成項目、改善スコアをまとめてAIに渡し、明日の現実的なプランを作ります。
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="askDailyReview()" id="daily-review-btn">🌙 今日を集計して明日のプランを作る</button>
+        <span id="daily-review-msg" style="font-size:12px;color:var(--text2)"></span>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-title">回答</div>
       <div id="coach-answer" class="coach-answer">相談内容を入力して「相談する」を押してください。</div>
     </div>
@@ -749,6 +759,7 @@ let GOALS = {...DEFAULT_GOALS};
 let todayStr = fmtD(new Date());
 let recDateStr = todayStr;
 let charts = {};
+let onlineRetryStarted = false;
 
 // ========== STORAGE (Cloudflare D1 API) ==========
 // オフライン書き込みキュー：API呼び出し失敗時にlocalStorageへフォールバック
@@ -772,13 +783,38 @@ async function loadDB(){
     setStatus('ok','');
   }catch(e){
     // APIが到達不能でもlocalStorageキャッシュで動作継続
-    setStatus('warn','オフラインモード（記録はデバイスに一時保存されます）');
+    setStatus('warn','オフラインモード（オンライン復帰時に自動同期します）');
+    startOnlineRetry();
     try{
       const d=localStorage.getItem('hrtrack_db_cache');
       if(d)DB=JSON.parse(d);
       const g=localStorage.getItem('hrtrack_goals_cache');
       if(g)GOALS={...DEFAULT_GOALS,...JSON.parse(g)};
     }catch{}
+  }
+}
+
+function startOnlineRetry(){
+  if(onlineRetryStarted)return;
+  onlineRetryStarted=true;
+  window.addEventListener('online',()=>syncOnlineNow(true));
+  setInterval(()=>syncOnlineNow(false),30000);
+}
+
+async function syncOnlineNow(showMessage=true){
+  try{
+    if(showMessage)setStatus('loading','オンライン接続を確認しています...');
+    const res = await fetch('/api/data',{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const payload = await res.json();
+    DB    = payload.db    || {};
+    GOALS = {...DEFAULT_GOALS, ...(payload.goals||{})};
+    await flushPending();
+    setStatus('ok','オンラインに復帰しました');
+    renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
+    setTimeout(()=>setStatus('',''),2500);
+  }catch{
+    if(showMessage)setStatus('warn','まだオンライン接続できません。Cloudflareの公開URLで開いているか確認してください。');
   }
 }
 
@@ -795,6 +831,8 @@ async function saveDay(dateStr){
       body: JSON.stringify(payload)
     });
     if(!res.ok) throw new Error('HTTP '+res.status);
+    setStatus('ok','オンライン保存しました');
+    setTimeout(()=>setStatus('',''),1200);
   }catch{
     addPending(payload);
     setStatus('warn','保存キューに追加しました（次回接続時に自動送信）');
@@ -1476,6 +1514,93 @@ function buildCoachContext(){
   };
 }
 
+function buildDailyReviewContext(){
+  const base=buildCoachContext();
+  const c=today().c||{};
+  const v=today().v||{};
+  const done=ROUTINES.filter(r=>c[r.id]);
+  const missed=ROUTINES.filter(r=>!c[r.id]);
+  const metricScores=getMetricScores();
+  const priorities=getPriorityItems(8).map(r=>({
+    id:r.id,
+    label:r.label,
+    topMetrics:r.top,
+    target:ACTIVITY_TARGETS[r.id]||'今日中',
+    priorityScore:Math.round(r.weighted)
+  }));
+  const timeBlocks=TIME_BLOCKS.map(block=>{
+    const routines=block.ids.map(id=>ROUTINES.find(r=>r.id===id)).filter(Boolean);
+    const doneItems=routines.filter(r=>c[r.id]).map(r=>r.label);
+    const missedItems=routines.filter(r=>!c[r.id]).map(r=>r.label);
+    return {
+      label:block.label,
+      target:block.target,
+      done:doneItems,
+      missed:missedItems,
+      completion:routines.length?Math.round(doneItems.length/routines.length*100):0
+    };
+  });
+  return {
+    ...base,
+    reviewDate: todayStr,
+    todaySummary: {
+      doneCount: done.length,
+      totalCount: ROUTINES.length,
+      completion: ROUTINES.length?Math.round(done.length/ROUTINES.length*100):0,
+      vitals: v,
+      done: done.map(r=>r.label),
+      missed: missed.map(r=>({label:r.label,tags:r.tags,target:ACTIVITY_TARGETS[r.id]||'今日中'})),
+      metricScores,
+      priorities,
+      timeBlocks
+    }
+  };
+}
+
+async function askDailyReview(){
+  const msg=document.getElementById('daily-review-msg');
+  const ans=document.getElementById('coach-answer');
+  const btn=document.getElementById('daily-review-btn');
+  const reviewQuestion=[
+    '一日の終わりレビューです。',
+    '今日の実績、未達成、数値記録、検査値別改善スコアを見て、明日のプランを作ってください。',
+    '欲しい出力:',
+    '1. 今日の良かった点',
+    '2. 今日足りなかった点',
+    '3. 明日の最小ミッション3つ',
+    '4. 朝9時・昼12時・夕3時・夜の時間帯別プラン',
+    '5. LDL・尿酸値・HbA1c・血圧・体重のどれを優先するか',
+    '6. 明日さぼってもよいこと',
+    '無理なく続けられる現実的な内容にしてください。'
+  ].join('\n');
+  msg.textContent='今日を集計してAIに渡しています...';
+  btn.disabled=true;
+  ans.textContent='今日のデータをもとに、明日のプランを作成中です...';
+  try{
+    const res=await fetch('/api/coach',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mode:'daily_review',question:reviewQuestion,context:buildDailyReviewContext()})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
+    ans.textContent=data.answer;
+    msg.textContent='明日のプランを作成しました';
+    loadCoachLogs();
+  }catch(e){
+    const text=e.message||'';
+    if(text.includes('503')||text.includes('UNAVAILABLE')||text.includes('high demand')||text.includes('混雑')){
+      ans.textContent='Geminiが混雑しているため、いまは明日のプランを作れませんでした。\n\n数分後にもう一度試してください。\n\nエラー: '+text;
+    }else{
+      ans.textContent='一日の終わりレビューでエラーが出ました。\n\nエラー: '+text;
+    }
+    msg.textContent='エラー';
+  }finally{
+    btn.disabled=false;
+    setTimeout(()=>msg.textContent='',3000);
+  }
+}
+
 async function askCoach(mode){
   const q=document.getElementById('coach-question').value.trim();
   const msg=document.getElementById('coach-msg');
@@ -1746,6 +1871,7 @@ window.addEventListener('DOMContentLoaded',async ()=>{
   document.getElementById('today-label').textContent=fmtJP(todayStr);
   await loadDB();
   renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
+  startOnlineRetry();
 });
 </script>
 </body>
