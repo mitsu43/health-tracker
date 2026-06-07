@@ -131,6 +131,8 @@ git add public/index.html
 git commit -m "update UI"
 git push origin main
 # → GitHub Actionsが自動でCloudflareにデプロイ
+
+
 ```
 
 ---
