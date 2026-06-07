@@ -174,9 +174,10 @@ async function callGemini(env, mode, question, context) {
     "医師の診断、薬の判断、治療方針の断定はしません。",
     "異常値、強い症状、継続する不調がある場合は医療機関への相談を促してください。",
     "回答は日本語で、短すぎず、実際にその場で選べる具体案を出してください。",
+    "必ず複数行で回答してください。1行でまとめることは禁止です。",
     "Markdownの # や * は使わず、見出しは【今日の最小ミッション】のように全角カッコで書いてください。",
     "必ず次の見出しをこの順番で使ってください: 【今日の最小ミッション】/【選ぶとよいもの】/【避けるもの】/【さぼってOK】/【気をつけるサイン】/【理由】。",
-    "各見出しには1〜3項目を書いてください。1行だけで終わらせないでください。",
+    "各見出しの後は必ず改行し、各項目も1つずつ改行してください。1行だけで終わらせないでください。",
     "外出、外食、観戦、飲み会、コンビニ、移動中の相談では、飲み物・食べ物・おやつ・帰宅後の注意を必ず含めてください。",
     "LDL、尿酸値、HbA1c、血圧、体重のうち、どれに効く行動かを必要に応じて明示してください。",
     "完璧主義を避け、優先順位をつけてください。できれば『最低限これだけ』を最初に1つ示してください。",
@@ -205,8 +206,9 @@ async function callGemini(env, mode, question, context) {
 
     if (res.ok) {
       const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
+      const answer = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
         || "回答を生成できませんでした。";
+      return formatCoachAnswer(answer);
     }
 
     const errText = await res.text();
@@ -219,4 +221,34 @@ async function callGemini(env, mode, question, context) {
   }
 
   throw new Error(`${lastError}\nすべてのGemini候補モデルが混雑しています。数分置いて再試行してください。`);
+}
+
+function formatCoachAnswer(answer) {
+  const headings = [
+    "今日の最小ミッション",
+    "選ぶとよいもの",
+    "避けるもの",
+    "さぼってOK",
+    "気をつけるサイン",
+    "理由",
+  ];
+  let text = String(answer || "").trim();
+
+  for (const heading of headings) {
+    text = text.replaceAll(`【${heading}】`, `\n\n【${heading}】\n`);
+  }
+
+  text = text
+    .replace(/。(?=【)/g, "。\n\n")
+    .replace(/。(?=[^\n])/g, "。\n")
+    .replace(/([。！？])\s*(?=[0-9０-９一二三四五六七八九十]+[.．、])/g, "$1\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const hasHeading = headings.some((heading) => text.includes(`【${heading}】`));
+  if (!hasHeading && text.length > 80) {
+    text = text.replace(/。/g, "。\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  return text;
 }
