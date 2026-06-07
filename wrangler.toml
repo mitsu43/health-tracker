@@ -2,6 +2,9 @@ name = "health-tracker"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
+[vars]
+GEMINI_MODEL = "gemini-2.5-flash"
+
 # 静的ファイルをWorker Assetsから配信
 [assets]
 directory = "./public"
@@ -11,4 +14,4 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "health-tracker-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "a8612e98-62a7-4d35-aa94-59e84a829643"
