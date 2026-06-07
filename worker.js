@@ -171,13 +171,14 @@ async function callGemini(env, mode, question, context) {
   const isDailyReview = mode === "daily_review";
   const headingInstruction = isDailyReview
     ? "必ず次の見出しをこの順番で使ってください: 【今日の振り返り】/【足りなかったこと】/【明日の最小ミッション】/【時間帯別プラン】/【優先する数値】/【さぼってOK】。"
-    : "必ず次の見出しをこの順番で使ってください: 【今日の最小ミッション】/【選ぶとよいもの】/【避けるもの】/【さぼってOK】/【気をつけるサイン】/【理由】。";
+    : "必ず次の見出しをこの順番で使ってください: 【結論】/【今日の最小ミッション】/【目安】/【理由】。";
   const prompt = [
     "あなたは健康管理アプリの伴走コーチです。",
     "役割は、ユーザーの生活ログを整理し、最小限の努力で改善しやすい行動を提案することです。",
     "医師の診断、薬の判断、治療方針の断定はしません。",
     "異常値、強い症状、継続する不調がある場合は医療機関への相談を促してください。",
     "回答は日本語で、短すぎず、実際にその場で選べる具体案を出してください。",
+    isDailyReview ? "" : "通常相談では全体を500字以内にし、最後まで完結してください。",
     "必ず複数行で回答してください。1行でまとめることは禁止です。",
     "Markdownの # や * は使わず、見出しは【今日の最小ミッション】のように全角カッコで書いてください。",
     headingInstruction,
@@ -192,7 +193,7 @@ async function callGemini(env, mode, question, context) {
     `ユーザーの相談: ${question}`,
     "",
     "直近データと目標値(JSON):",
-    JSON.stringify(context).slice(0, 12000),
+    JSON.stringify(context).slice(0, isDailyReview ? 12000 : 5000),
   ].join("\n");
 
   let lastError = "";
@@ -205,7 +206,7 @@ async function callGemini(env, mode, question, context) {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.35,
-          maxOutputTokens: isDailyReview ? 2400 : 1400,
+          maxOutputTokens: isDailyReview ? 2400 : 1800,
         },
       }),
     });
@@ -216,7 +217,10 @@ async function callGemini(env, mode, question, context) {
       const answer = candidate?.content?.parts?.map((p) => p.text || "").join("\n").trim()
         || "回答を生成できませんでした。";
       let formatted = formatCoachAnswer(answer, mode);
-      if (candidate?.finishReason === "MAX_TOKENS" || (isDailyReview && !formatted.includes("【さぼってOK】"))) {
+      const missingFinalHeading = isDailyReview
+        ? !formatted.includes("【さぼってOK】")
+        : !formatted.includes("【理由】");
+      if (candidate?.finishReason === "MAX_TOKENS" || missingFinalHeading) {
         formatted += "\n\n（回答が長くなり途中で切れた可能性があります。もう一度押すと再生成できます。）";
       }
       return formatted;
@@ -236,11 +240,9 @@ async function callGemini(env, mode, question, context) {
 
 function formatCoachAnswer(answer, mode = "today") {
   const defaultHeadings = [
+    "結論",
     "今日の最小ミッション",
-    "選ぶとよいもの",
-    "避けるもの",
-    "さぼってOK",
-    "気をつけるサイン",
+    "目安",
     "理由",
   ];
   const reviewHeadings = [
