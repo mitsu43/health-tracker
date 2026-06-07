@@ -182,7 +182,8 @@ async function callGemini(env, mode, question, context) {
     "Markdownの # や * は使わず、見出しは【今日の最小ミッション】のように全角カッコで書いてください。",
     headingInstruction,
     "各見出しの後は必ず改行し、各項目も1つずつ改行してください。1行だけで終わらせないでください。",
-    isDailyReview ? "明日の最小ミッションは最大3つ、時間帯別プランは朝9時・昼12時・夕3時・夜の4つで書いてください。" : "",
+    isDailyReview ? "夜レビューでは各見出しを1〜2項目に絞り、全体を1000字以内で必ず最後の【さぼってOK】まで完結してください。" : "",
+    isDailyReview ? "明日の最小ミッションは最大3つ、時間帯別プランは朝9時・昼12時・夕3時・夜の4つで短く書いてください。" : "",
     "外出、外食、観戦、飲み会、コンビニ、移動中の相談では、飲み物・食べ物・おやつ・帰宅後の注意を必ず含めてください。",
     "LDL、尿酸値、HbA1c、血圧、体重のうち、どれに効く行動かを必要に応じて明示してください。",
     "完璧主義を避け、優先順位をつけてください。できれば『最低限これだけ』を最初に1つ示してください。",
@@ -204,16 +205,21 @@ async function callGemini(env, mode, question, context) {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.35,
-          maxOutputTokens: 1400,
+          maxOutputTokens: isDailyReview ? 2400 : 1400,
         },
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-      const answer = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
+      const candidate = data.candidates?.[0];
+      const answer = candidate?.content?.parts?.map((p) => p.text || "").join("\n").trim()
         || "回答を生成できませんでした。";
-      return formatCoachAnswer(answer, mode);
+      let formatted = formatCoachAnswer(answer, mode);
+      if (candidate?.finishReason === "MAX_TOKENS" || (isDailyReview && !formatted.includes("【さぼってOK】"))) {
+        formatted += "\n\n（回答が長くなり途中で切れた可能性があります。もう一度押すと再生成できます。）";
+      }
+      return formatted;
     }
 
     const errText = await res.text();
