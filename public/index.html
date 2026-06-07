@@ -1510,7 +1510,12 @@ function buildCoachContext(){
       waterMl: avgRecent('water_ml',days), sbp: avgRecent('sbp',days), weight: avgRecent('wt',days)
     },
     missedTop,
-    records
+    recentRecordsSummary: records.slice(-7).map(r=>({
+      date:r.date,
+      vitals:r.vitals,
+      doneCount:Object.values(r.checks||{}).filter(Boolean).length,
+      missedCount:ROUTINES.length-Object.values(r.checks||{}).filter(Boolean).length
+    }))
   };
 }
 
