@@ -158,3 +158,5 @@ wrangler d1 export health-tracker-db --remote --output=backup.sql
 | D1 ストレージ | 5GB | ~1MB/年 → **問題なし** |
 
 **実質完全無料で運用できる。**
+
+
