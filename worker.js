@@ -168,6 +168,10 @@ async function callGemini(env, mode, question, context) {
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
   ].filter((model, index, all) => model && all.indexOf(model) === index);
+  const isDailyReview = mode === "daily_review";
+  const headingInstruction = isDailyReview
+    ? "必ず次の見出しをこの順番で使ってください: 【今日の振り返り】/【足りなかったこと】/【明日の最小ミッション】/【時間帯別プラン】/【優先する数値】/【さぼってOK】。"
+    : "必ず次の見出しをこの順番で使ってください: 【今日の最小ミッション】/【選ぶとよいもの】/【避けるもの】/【さぼってOK】/【気をつけるサイン】/【理由】。";
   const prompt = [
     "あなたは健康管理アプリの伴走コーチです。",
     "役割は、ユーザーの生活ログを整理し、最小限の努力で改善しやすい行動を提案することです。",
@@ -176,8 +180,9 @@ async function callGemini(env, mode, question, context) {
     "回答は日本語で、短すぎず、実際にその場で選べる具体案を出してください。",
     "必ず複数行で回答してください。1行でまとめることは禁止です。",
     "Markdownの # や * は使わず、見出しは【今日の最小ミッション】のように全角カッコで書いてください。",
-    "必ず次の見出しをこの順番で使ってください: 【今日の最小ミッション】/【選ぶとよいもの】/【避けるもの】/【さぼってOK】/【気をつけるサイン】/【理由】。",
+    headingInstruction,
     "各見出しの後は必ず改行し、各項目も1つずつ改行してください。1行だけで終わらせないでください。",
+    isDailyReview ? "明日の最小ミッションは最大3つ、時間帯別プランは朝9時・昼12時・夕3時・夜の4つで書いてください。" : "",
     "外出、外食、観戦、飲み会、コンビニ、移動中の相談では、飲み物・食べ物・おやつ・帰宅後の注意を必ず含めてください。",
     "LDL、尿酸値、HbA1c、血圧、体重のうち、どれに効く行動かを必要に応じて明示してください。",
     "完璧主義を避け、優先順位をつけてください。できれば『最低限これだけ』を最初に1つ示してください。",
@@ -208,7 +213,7 @@ async function callGemini(env, mode, question, context) {
       const data = await res.json();
       const answer = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
         || "回答を生成できませんでした。";
-      return formatCoachAnswer(answer);
+      return formatCoachAnswer(answer, mode);
     }
 
     const errText = await res.text();
@@ -223,8 +228,8 @@ async function callGemini(env, mode, question, context) {
   throw new Error(`${lastError}\nすべてのGemini候補モデルが混雑しています。数分置いて再試行してください。`);
 }
 
-function formatCoachAnswer(answer) {
-  const headings = [
+function formatCoachAnswer(answer, mode = "today") {
+  const defaultHeadings = [
     "今日の最小ミッション",
     "選ぶとよいもの",
     "避けるもの",
@@ -232,6 +237,15 @@ function formatCoachAnswer(answer) {
     "気をつけるサイン",
     "理由",
   ];
+  const reviewHeadings = [
+    "今日の振り返り",
+    "足りなかったこと",
+    "明日の最小ミッション",
+    "時間帯別プラン",
+    "優先する数値",
+    "さぼってOK",
+  ];
+  const headings = mode === "daily_review" ? reviewHeadings : defaultHeadings;
   let text = String(answer || "").trim();
 
   for (const heading of headings) {
