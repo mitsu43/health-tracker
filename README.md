@@ -53,6 +53,19 @@ wrangler d1 execute health-tracker-db --local --file=schema.sql
 wrangler d1 execute health-tracker-db --remote --file=schema.sql
 ```
 
+すでにDBを作成済みで、相談履歴だけ追加したい場合は、CloudflareのD1 Consoleで以下だけを実行:
+
+```sql
+CREATE TABLE IF NOT EXISTS coach_logs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at  TEXT DEFAULT (datetime('now')),
+  mode        TEXT DEFAULT 'today',
+  question    TEXT NOT NULL,
+  answer      TEXT NOT NULL,
+  context     TEXT DEFAULT '{}'
+);
+```
+
 ---
 
 ## STEP 4 — GitHubリポジトリを作成してpush
@@ -117,6 +130,8 @@ https://health-tracker.あなたのサブドメイン.workers.dev
 
 標準では `gemini-1.5-flash` を使います。モデル名を変えたい場合は、あとでWorkerの環境変数 `GEMINI_MODEL` を追加してください。
 
+相談内容と回答はD1の `coach_logs` テーブルに保存され、アプリ内の「伴走相談」→「相談履歴」で確認できます。
+
 この機能は診断や治療判断ではなく、記録に基づく生活改善の整理を目的にしています。異常値や症状がある場合は医師に相談してください。
 
 ---
@@ -131,8 +146,6 @@ git add public/index.html
 git commit -m "update UI"
 git push origin main
 # → GitHub Actionsが自動でCloudflareにデプロイ
-
-
 ```
 
 ---
@@ -158,5 +171,3 @@ wrangler d1 export health-tracker-db --remote --output=backup.sql
 | D1 ストレージ | 5GB | ~1MB/年 → **問題なし** |
 
 **実質完全無料で運用できる。**
-
-
