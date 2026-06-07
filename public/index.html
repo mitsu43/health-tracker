@@ -253,6 +253,9 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .time-missing{font-size:12px;color:var(--danger);line-height:1.5;margin-top:6px}
 .time-score{font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--text)}
 .day-diagnosis{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow);font-size:13px;color:var(--text2);line-height:1.7}
+.quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.quick-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.quick-note{font-size:12px;color:var(--text2);line-height:1.6}
 
 @media(max-width:900px){
   body{font-size:16px;line-height:1.75}
@@ -274,7 +277,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .kpi-val{font-size:22px}
   .prog-summary{grid-template-columns:1fr}
   .chart-grid,.two-col{grid-template-columns:1fr}
-  .coach-summary-grid,.time-grid{grid-template-columns:1fr}
+  .coach-summary-grid,.time-grid,.quick-grid{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr 1fr}
   .card,.score-panel,.problem-card,.chart-card,.time-card{padding:16px;border-radius:12px;margin-bottom:12px}
@@ -304,6 +307,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 @media(max-width:520px){
   .kpi-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr}
+  .quick-grid{grid-template-columns:1fr}
   .score-head{align-items:flex-start;gap:6px;flex-direction:column}
   .metric-score-row{align-items:flex-start;flex-direction:column;gap:2px}
   .impact-row{align-items:flex-start;flex-direction:column;gap:6px}
@@ -355,6 +359,24 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="progress" style="height:4px;margin-bottom:20px"><div class="progress-fill" id="main-prog" style="width:0%;background:var(--accent)"></div></div>
     <div id="alert-zone" style="margin-bottom:16px"></div>
     <div class="kpi-grid" id="kpi-row"></div>
+    <div class="card">
+      <div class="card-title">途中入力（今日の現在値）</div>
+      <div class="quick-note" style="margin-bottom:10px">歩数や水分は、日の終わりを待たずに途中で何度でも更新できます。保存すると今日の記録に上書きされます。</div>
+      <div class="quick-grid">
+        <div class="form-group"><label>現在の歩数</label><input type="number" id="q-steps" placeholder="例 4500"></div>
+        <div class="form-group"><label>水分量 (ml)</label><input type="number" id="q-water_ml" placeholder="例 900"></div>
+        <div class="form-group"><label>体重 (kg)</label><input type="number" step="0.1" id="q-wt" placeholder="例 88.5"></div>
+        <div class="form-group"><label>睡眠時間 (h)</label><input type="number" step="0.25" id="q-slp" placeholder="例 6.5"></div>
+        <div class="form-group"><label>最高血圧</label><input type="number" id="q-sbp" placeholder="例 128"></div>
+        <div class="form-group"><label>最低血圧</label><input type="number" id="q-dbp" placeholder="例 82"></div>
+        <div class="form-group"><label>腹囲 (cm)</label><input type="number" step="0.1" id="q-waist" placeholder="例 95.0"></div>
+        <div class="form-group"><label>体脂肪率 (%)</label><input type="number" step="0.1" id="q-bf" placeholder="例 27.0"></div>
+      </div>
+      <div class="quick-actions">
+        <button class="btn btn-primary" onclick="saveQuickVitals()">途中経過を保存</button>
+        <span id="quick-save-msg" class="quick-note"></span>
+      </div>
+    </div>
     <div id="daily-diagnosis" class="day-diagnosis"></div>
     <div class="coach-summary-grid">
       <div class="score-panel">
@@ -402,12 +424,14 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <div class="form-group"><label>体重 (kg)</label><input type="number" step="0.1" id="r-wt" placeholder="89.2"></div>
         <div class="form-group"><label>体脂肪率 (%)</label><input type="number" step="0.1" id="r-bf" placeholder="27.2"></div>
         <div class="form-group"><label>内臓脂肪レベル</label><input type="number" step="0.5" id="r-vis" placeholder="14"></div>
+        <div class="form-group"><label>腹囲 (cm)</label><input type="number" step="0.1" id="r-waist" placeholder="95.0"></div>
       </div>
     </div>
     <div class="card">
       <div class="card-title">🚶 活動・睡眠</div>
       <div class="form-grid">
         <div class="form-group"><label>歩数</label><input type="number" id="r-steps" placeholder="10000"></div>
+        <div class="form-group"><label>水分量 (ml)</label><input type="number" id="r-water_ml" placeholder="1500"></div>
         <div class="form-group"><label>睡眠時間 (h)</label><input type="number" step="0.25" id="r-slp" placeholder="6.5"></div>
         <div class="form-group"><label>睡眠スコア</label><input type="number" id="r-slpscore" placeholder="73"></div>
       </div>
@@ -590,10 +614,15 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       <div class="form-grid">
         <div class="form-group"><label>目標体重 (kg)</label><input type="number" step="0.1" id="g-wt" placeholder="83"></div>
         <div class="form-group"><label>目標最高血圧</label><input type="number" id="g-sbp" placeholder="125"></div>
+        <div class="form-group"><label>目標最低血圧</label><input type="number" id="g-dbp" placeholder="80"></div>
         <div class="form-group"><label>目標LDL</label><input type="number" id="g-ldl" placeholder="119"></div>
         <div class="form-group"><label>目標尿酸値</label><input type="number" step="0.1" id="g-ua" placeholder="7.0"></div>
         <div class="form-group"><label>目標HbA1c</label><input type="number" step="0.1" id="g-hba1c" placeholder="5.5"></div>
         <div class="form-group"><label>目標歩数/日</label><input type="number" id="g-steps" placeholder="10000"></div>
+        <div class="form-group"><label>目標水分量 (ml)</label><input type="number" id="g-water_ml" placeholder="1500"></div>
+        <div class="form-group"><label>目標睡眠時間 (h)</label><input type="number" step="0.25" id="g-slp" placeholder="7"></div>
+        <div class="form-group"><label>目標体脂肪率 (%)</label><input type="number" step="0.1" id="g-bf" placeholder="25"></div>
+        <div class="form-group"><label>目標腹囲 (cm)</label><input type="number" step="0.1" id="g-waist" placeholder="90"></div>
       </div>
       <button class="btn btn-primary" onclick="saveGoals()">目標を保存</button>
     </div>
@@ -702,7 +731,10 @@ const TIME_BLOCKS = [
   {key:'night', label:'夜', target:'悪化を止める', ids:['light_din','no_alc','no_eat_20','sleep7','no_fried']}
 ];
 
-const DEFAULT_GOALS = {wt:83,sbp:125,ldl:119,ua:7.0,hba1c:5.5,steps:10000};
+const VITAL_FIELDS = ['sbp','dbp','pulse','wt','bf','vis','waist','steps','water_ml','slp','slpscore','ldl','ua','hba1c','fg','tg','hdl'];
+const QUICK_FIELDS = ['steps','water_ml','wt','slp','sbp','dbp','waist','bf'];
+const GOAL_FIELDS = ['wt','sbp','dbp','ldl','ua','hba1c','steps','water_ml','slp','bf','waist'];
+const DEFAULT_GOALS = {wt:83,sbp:125,dbp:80,ldl:119,ua:7.0,hba1c:5.5,steps:10000,water_ml:1500,slp:7,bf:25,waist:90};
 const BASELINE = {wt:89.2,sbp:128,ldl:179,ua:8.1,hba1c:6.1,fg:109,steps:0,slp:0};
 const METRIC_INFO = {
   wt:    {label:'体重',   unit:'kg',   warn:90,   danger:92,   color:'#2a7a4b'},
@@ -819,7 +851,7 @@ function sw(name){
   });
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  if(name==='today'){renderKPIs();renderAlerts();renderTodayDashboard();renderRoutine()}
+  if(name==='today'){renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine()}
   if(name==='record'){renderRec()}
   if(name==='analysis'){renderAnalysis()}
   if(name==='impact'){renderImpact()}
@@ -1027,7 +1059,13 @@ function renderDayDiagnosis(){
   const weakText=weak.length?`不足している改善先は ${weak.map(w=>`${w.label}${w.pct}%`).join('、')} です。`:'検査値別の行動スコアはおおむね良好です。';
   const worseText=worse.length?`悪化傾向: ${worse.map(w=>`${METRIC_INFO[w.k]?.label||w.k}+${w.diff}`).join('、')}。`:'直近比較で大きな悪化は見えていません。';
   const nextText=priority?`次にやるなら「${priority.label}」が最優先です。`:'今日の主要項目は完了です。';
-  el.innerHTML=`<strong>今日の集計：</strong>${weakText} ${worseText} ${nextText}`;
+  const v=(today()&&today().v)||{};
+  const numericNeeds=[];
+  if((v.steps||0)<(GOALS.steps||10000)) numericNeeds.push(`歩数あと${Math.max(0,(GOALS.steps||10000)-(v.steps||0)).toLocaleString()}歩`);
+  if((v.water_ml||0)<(GOALS.water_ml||1500)) numericNeeds.push(`水分あと${Math.max(0,(GOALS.water_ml||1500)-(v.water_ml||0))}ml`);
+  if(v.slp!=null && v.slp<(GOALS.slp||7)) numericNeeds.push(`睡眠あと${((GOALS.slp||7)-v.slp).toFixed(1)}h`);
+  const numText=numericNeeds.length?`数値目標の不足: ${numericNeeds.join('、')}。`:'歩数・水分などの数値目標は順調です。';
+  el.innerHTML=`<strong>今日の集計：</strong>${weakText} ${numText} ${worseText} ${nextText}`;
 }
 
 function renderTodayDashboard(){
@@ -1072,18 +1110,47 @@ function renderRoutine(){
   });
 }
 
+function renderQuickVitals(){
+  const v=(today()&&today().v)||{};
+  QUICK_FIELDS.forEach(k=>{
+    const el=document.getElementById('q-'+k);
+    if(el)el.value=v[k]!=null?v[k]:'';
+  });
+}
+
+async function saveQuickVitals(){
+  const d=today();
+  if(!d.v)d.v={};
+  QUICK_FIELDS.forEach(k=>{
+    const el=document.getElementById('q-'+k);
+    if(el&&el.value!=='')d.v[k]=parseFloat(el.value);
+  });
+  await saveDay(todayStr);
+  renderKPIs();
+  renderAlerts();
+  renderTodayDashboard();
+  const msg=document.getElementById('quick-save-msg');
+  if(msg){
+    const v=d.v||{};
+    const stepText=v.steps!=null?`歩数 ${v.steps.toLocaleString()}歩`:'';
+    const waterText=v.water_ml!=null?`水分 ${v.water_ml}ml`:'';
+    msg.textContent='保存しました' + (stepText||waterText?`（${[stepText,waterText].filter(Boolean).join(' / ')}）`:'');
+    setTimeout(()=>msg.textContent='',3000);
+  }
+}
+
 async function tog(id){
   const c=today().c;
   c[id]=!c[id];
   await saveDay(todayStr);
-  renderKPIs();renderAlerts();renderTodayDashboard();renderRoutine();
+  renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
 }
 
 // ========== RECORD ==========
 function renderRec(){
   document.getElementById('rec-date').textContent=fmtJP(recDateStr);
   const v=(DB[recDateStr]&&DB[recDateStr].v)||{};
-  ['sbp','dbp','pulse','wt','bf','vis','steps','slp','slpscore','ldl','ua','hba1c','fg','tg','hdl'].forEach(k=>{
+  VITAL_FIELDS.forEach(k=>{
     const el=document.getElementById('r-'+k);
     if(el)el.value=v[k]!=null?v[k]:'';
   });
@@ -1091,8 +1158,8 @@ function renderRec(){
 function recDay(d){const dt=new Date(recDateStr);dt.setDate(dt.getDate()+d);recDateStr=fmtD(dt);renderRec()}
 async function saveRec(){
   if(!DB[recDateStr])DB[recDateStr]={c:{},v:{}};
-  const v={};
-  ['sbp','dbp','pulse','wt','bf','vis','steps','slp','slpscore','ldl','ua','hba1c','fg','tg','hdl'].forEach(k=>{
+  const v={...(DB[recDateStr].v||{})};
+  VITAL_FIELDS.forEach(k=>{
     const el=document.getElementById('r-'+k);
     if(el&&el.value!=='')v[k]=parseFloat(el.value);
   });
@@ -1101,6 +1168,7 @@ async function saveRec(){
   const msg=document.getElementById('save-msg');
   msg.textContent='✅ 保存しました';
   setTimeout(()=>msg.textContent='',2500);
+  if(recDateStr===todayStr){renderQuickVitals();renderKPIs();renderTodayDashboard()}
 }
 
 // ========== ANALYSIS ==========
@@ -1396,11 +1464,12 @@ function buildCoachContext(){
     goals: GOALS,
     latest: {
       wt:getLatestVal('wt'), sbp:getLatestVal('sbp'), ldl:getLatestVal('ldl'),
-      ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c'), steps:getLatestVal('steps'), slp:getLatestVal('slp')
+      ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c'), steps:getLatestVal('steps'), water_ml:getLatestVal('water_ml'), slp:getLatestVal('slp')
     },
+    todayVitals: DB[todayStr]?.v || {},
     recentAverages: {
       steps: avgRecent('steps',days), sleepHours: avgRecent('slp',days),
-      sbp: avgRecent('sbp',days), weight: avgRecent('wt',days)
+      waterMl: avgRecent('water_ml',days), sbp: avgRecent('sbp',days), weight: avgRecent('wt',days)
     },
     missedTop,
     records
@@ -1428,7 +1497,14 @@ async function askCoach(mode){
     msg.textContent='回答しました';
     loadCoachLogs();
   }catch(e){
-    ans.textContent='Gemini連携でエラーが出ました。\n\nCloudflare Workerの「Variables and Secrets」に GEMINI_API_KEY が設定されているか確認してください。\n\nエラー: '+e.message;
+    const text=e.message||'';
+    if(text.includes('503')||text.includes('UNAVAILABLE')||text.includes('high demand')||text.includes('混雑')){
+      ans.textContent='Geminiが混雑しているため、いまは回答を作れませんでした。\n\nAPIキーは届いています。数分後にもう一度試してください。\n\nエラー: '+text;
+    }else if(text.includes('GEMINI_API_KEY')||text.includes('API key')||text.includes('403')||text.includes('401')){
+      ans.textContent='Gemini APIキーの設定でエラーが出ました。\n\nCloudflare Workerの「変数とシークレット」に GEMINI_API_KEY が設定されているか確認してください。\n\nエラー: '+text;
+    }else{
+      ans.textContent='Gemini連携でエラーが出ました。\n\n少し時間を置いて再試行してください。続く場合はCloudflareの変数とシークレット、またはGeminiの利用状況を確認してください。\n\nエラー: '+text;
+    }
     msg.textContent='エラー';
   }finally{
     btn.disabled=false;
@@ -1600,11 +1676,10 @@ function renderHistory(){
 
 // ========== SETTINGS ==========
 function renderSettings(){
-  const gs=['wt','sbp','ldl','ua','hba1c','steps'];
-  gs.forEach(k=>{const el=document.getElementById('g-'+k);if(el)el.value=GOALS[k]||''});
+  GOAL_FIELDS.forEach(k=>{const el=document.getElementById('g-'+k);if(el)el.value=GOALS[k]||''});
 }
 async function saveGoals(){
-  ['wt','sbp','ldl','ua','hba1c','steps'].forEach(k=>{
+  GOAL_FIELDS.forEach(k=>{
     const el=document.getElementById('g-'+k);
     if(el&&el.value!=='')GOALS[k]=parseFloat(el.value);
   });
@@ -1670,7 +1745,7 @@ window.addEventListener('DOMContentLoaded',async ()=>{
   initSidebar();
   document.getElementById('today-label').textContent=fmtJP(todayStr);
   await loadDB();
-  renderKPIs();renderAlerts();renderTodayDashboard();renderRoutine();
+  renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
 });
 </script>
 </body>
