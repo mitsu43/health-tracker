@@ -1563,7 +1563,7 @@ async function askDailyReview(){
   const btn=document.getElementById('daily-review-btn');
   const reviewQuestion=[
     '一日の終わりレビューです。',
-    '今日の実績、未達成、数値記録、検査値別改善スコアを見て、明日のプランを作ってください。',
+    '前置きは不要です。今日の実績、未達成、数値記録、検査値別改善スコアを見て、明日のプランを作ってください。',
     '欲しい出力:',
     '1. 今日の良かった点',
     '2. 今日足りなかった点',
@@ -1571,7 +1571,7 @@ async function askDailyReview(){
     '4. 朝9時・昼12時・夕3時・夜の時間帯別プラン',
     '5. LDL・尿酸値・HbA1c・血圧・体重のどれを優先するか',
     '6. 明日さぼってもよいこと',
-    '無理なく続けられる現実的な内容にしてください。'
+    '各項目は短く、最後まで完結してください。'
   ].join('\n');
   msg.textContent='今日を集計してAIに渡しています...';
   btn.disabled=true;
