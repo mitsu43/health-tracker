@@ -162,8 +162,12 @@ function json(data, headers, status = 200) {
 }
 
 async function callGemini(env, mode, question, context) {
-  const model = env.GEMINI_MODEL || "gemini-2.5-flash";
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+  const preferredModel = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const fallbackModels = [
+    preferredModel,
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+  ].filter((model, index, all) => model && all.indexOf(model) === index);
   const prompt = [
     "あなたは健康管理アプリの伴走コーチです。",
     "役割は、ユーザーの生活ログを整理し、最小限の努力で改善しやすい行動を提案することです。",
@@ -184,24 +188,35 @@ async function callGemini(env, mode, question, context) {
     JSON.stringify(context).slice(0, 12000),
   ].join("\n");
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.35,
-        maxOutputTokens: 1400,
-      },
-    }),
-  });
+  let lastError = "";
+  for (const model of fallbackModels) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.35,
+          maxOutputTokens: 1400,
+        },
+      }),
+    });
 
-  if (!res.ok) {
+    if (res.ok) {
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
+        || "回答を生成できませんでした。";
+    }
+
     const errText = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${errText.slice(0, 300)}`);
+    lastError = `Gemini API error ${res.status} on ${model}: ${errText.slice(0, 300)}`;
+
+    // 503/429は混雑やレート制限なので次の軽量モデルを試す。
+    if (![429, 503].includes(res.status)) {
+      throw new Error(lastError);
+    }
   }
 
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
-    || "回答を生成できませんでした。";
+  throw new Error(`${lastError}\nすべてのGemini候補モデルが混雑しています。数分置いて再試行してください。`);
 }
