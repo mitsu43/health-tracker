@@ -32,7 +32,7 @@ export default {
 async function handleAPI(request, url, method, env) {
   const cors = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Content-Type": "application/json",
   };
@@ -148,6 +148,15 @@ async function handleAPI(request, url, method, env) {
         LIMIT 50
       `).all();
       return json({ ok: true, logs: rows.results || [] }, cors);
+    }
+
+    // DELETE /api/coach/logs/:id — 相談履歴を削除
+    const logDeleteMatch = url.pathname.match(/^\/api\/coach\/logs\/(\d+)$/);
+    if (logDeleteMatch && method === "DELETE") {
+      await env.DB.prepare("DELETE FROM coach_logs WHERE id = ?")
+        .bind(Number(logDeleteMatch[1]))
+        .run();
+      return json({ ok: true }, cors);
     }
 
     return json({ error: "not found" }, cors, 404);
