@@ -1716,24 +1716,30 @@ function renderTrends(){
   const ref=new Date();
   for(let i=29;i>=0;i--){const d=new Date(ref);d.setDate(d.getDate()-i);days.push(fmtD(d))}
   const getVals=(key)=>days.map(d=>DB[d]?.v?.[key]??null);
+  const metricDays=(keys)=>Object.keys(DB).filter(d=>keys.some(k=>DB[d]?.v?.[k]!=null)).sort();
+  const compactLabel=(s)=>s.slice(2,4)+'/'+fmtShort(s);
 
-  const wtVals=getVals('wt');
+  const wtDays=metricDays(['wt']);
+  const wtLabels=wtDays.length>30?wtDays.map(compactLabel):days.map(fmtShort);
+  const wtVals=wtDays.length>30?wtDays.map(d=>DB[d]?.v?.wt??null):getVals('wt');
   const hasWt=wtVals.some(v=>v!=null);
   if(hasWt){
-    mkChart('chart-wt','line',days.map(fmtShort),[
+    mkChart('chart-wt','line',wtLabels,[
       {label:'体重',data:wtVals,borderColor:'#2a7a4b',backgroundColor:'rgba(42,122,75,0.06)',tension:0.3,spanGaps:true,pointRadius:3,pointBackgroundColor:'#2a7a4b'},
-      {label:'目標',data:days.map(()=>GOALS.wt),borderColor:'rgba(0,0,0,0.15)',borderDash:[4,4],pointRadius:0,tension:0,spanGaps:true},
+      {label:'目標',data:wtVals.map(()=>GOALS.wt),borderColor:'rgba(0,0,0,0.15)',borderDash:[4,4],pointRadius:0,tension:0,spanGaps:true},
     ]);
     const last=wtVals.filter(v=>v!=null).pop();
     const b=document.getElementById('wt-badge');
     if(b){b.textContent=last?`${last}kg`:'—';b.className='chart-badge '+(last>GOALS.wt+3?'danger':last>GOALS.wt?'warn':'ok')}
   }
 
-  const bpVals=getVals('sbp');
+  const bpDays=metricDays(['sbp','dbp']);
+  const bpLabels=bpDays.length>30?bpDays.map(compactLabel):days.map(fmtShort);
+  const bpVals=bpDays.length>30?bpDays.map(d=>DB[d]?.v?.sbp??null):getVals('sbp');
   if(bpVals.some(v=>v!=null)){
-    mkChart('chart-bp','line',days.map(fmtShort),[
+    mkChart('chart-bp','line',bpLabels,[
       {label:'最高血圧',data:bpVals,borderColor:'#2563a8',backgroundColor:'rgba(37,99,168,0.06)',tension:0.3,spanGaps:true,pointRadius:3,pointBackgroundColor:'#2563a8'},
-      {label:'目標',data:days.map(()=>GOALS.sbp||125),borderColor:'rgba(0,0,0,0.15)',borderDash:[4,4],pointRadius:0,spanGaps:true},
+      {label:'目標',data:bpVals.map(()=>GOALS.sbp||125),borderColor:'rgba(0,0,0,0.15)',borderDash:[4,4],pointRadius:0,spanGaps:true},
     ]);
     const last=bpVals.filter(v=>v!=null).pop();
     const b=document.getElementById('bp-badge');
@@ -1766,7 +1772,7 @@ function renderTrends(){
   // Blood chart (only days with blood data)
   const bloodDays=Object.keys(DB).filter(d=>DB[d].v&&(DB[d].v.ldl||DB[d].v.ua||DB[d].v.hba1c)).sort();
   if(bloodDays.length>0){
-    mkChart('chart-blood','line',bloodDays.map(fmtShort),[
+    mkChart('chart-blood','line',bloodDays.map(compactLabel),[
       {label:'LDL',data:bloodDays.map(d=>DB[d].v.ldl??null),borderColor:'#c96a2a',tension:0.3,spanGaps:true,pointRadius:4,yAxisID:'y'},
       {label:'尿酸値×10',data:bloodDays.map(d=>DB[d].v.ua?DB[d].v.ua*10:null),borderColor:'#b07820',tension:0.3,spanGaps:true,pointRadius:4,yAxisID:'y'},
       {label:'HbA1c×10',data:bloodDays.map(d=>DB[d].v.hba1c?DB[d].v.hba1c*10:null),borderColor:'#c0392b',tension:0.3,spanGaps:true,pointRadius:4,yAxisID:'y'},
