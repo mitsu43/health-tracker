@@ -382,6 +382,21 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div id="daily-diagnosis" class="day-diagnosis"></div>
+    <div class="card">
+      <div class="card-title">+1,000歩シミュレーター</div>
+      <div class="quick-note" style="margin-bottom:10px">
+        1,000歩ずつ増やした場合の今日の到達率を見ます。効果は推定で、LDL・HbA1c・体重・血圧の改善行動として評価します。
+      </div>
+      <div class="slider-row" style="margin-bottom:12px">
+        <input type="range" min="1000" max="5000" step="1000" value="1000" id="step-plus-slider" oninput="renderStepIncrement()">
+        <div class="slider-val" id="step-plus-val">+1,000</div>
+      </div>
+      <div id="step-increment-result"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="applyStepIncrement()">今日の歩数に加算</button>
+        <span id="step-plus-msg" class="quick-note"></span>
+      </div>
+    </div>
     <div class="coach-summary-grid">
       <div class="score-panel">
         <div class="score-head">
@@ -1143,8 +1158,57 @@ function renderTodayDashboard(){
   renderDailyScore();
   renderPriority();
   renderTimeSummary();
+  renderStepIncrement();
   renderOfficePlan();
   renderDayDiagnosis();
+}
+
+function renderStepIncrement(){
+  const slider=document.getElementById('step-plus-slider');
+  const valEl=document.getElementById('step-plus-val');
+  const body=document.getElementById('step-increment-result');
+  if(!slider||!valEl||!body)return;
+  const add=parseInt(slider.value||1000);
+  valEl.textContent='+'+add.toLocaleString();
+  const v=(today()&&today().v)||{};
+  const current=parseInt(v.steps||0);
+  const goal=GOALS.steps||10000;
+  const projected=current+add;
+  const beforePct=Math.min(100,Math.round(current/goal*100));
+  const afterPct=Math.min(100,Math.round(projected/goal*100));
+  const remaining=Math.max(0,goal-projected);
+  const blocks=Math.round(add/1000);
+  const score=Math.min(20,blocks*4);
+  const col=afterPct>=100?'var(--ok)':afterPct>=70?'var(--warn)':'var(--danger)';
+  const minutes=Math.round(add/100);
+  body.innerHTML=`<div class="metric-score" style="margin-bottom:10px">
+    <div class="metric-score-row">
+      <div class="metric-score-name">今日の歩数 ${current.toLocaleString()} → ${projected.toLocaleString()}歩</div>
+      <div class="metric-score-val" style="color:${col}">${beforePct}% → ${afterPct}%</div>
+    </div>
+    <div class="progress"><div class="progress-fill" style="width:${afterPct}%;background:${col}"></div></div>
+  </div>
+  <div style="font-size:13px;color:var(--text2);line-height:1.7">
+    目安: 約${minutes}分の歩行相当。改善スコア +${score}点相当。主に <strong>HbA1c・体重・血圧・LDL</strong> の行動評価に加点します。
+    ${remaining?`<br>目標${goal.toLocaleString()}歩まで、あと${remaining.toLocaleString()}歩です。`:'<br>今日の歩数目標は達成圏です。'}
+  </div>`;
+}
+
+async function applyStepIncrement(){
+  const slider=document.getElementById('step-plus-slider');
+  const msg=document.getElementById('step-plus-msg');
+  const add=parseInt(slider?.value||1000);
+  const d=today();
+  if(!d.v)d.v={};
+  d.v.steps=parseInt(d.v.steps||0)+add;
+  await saveDay(todayStr);
+  renderQuickVitals();
+  renderKPIs();
+  renderTodayDashboard();
+  if(msg){
+    msg.textContent=`${add.toLocaleString()}歩を加算しました（現在 ${d.v.steps.toLocaleString()}歩）`;
+    setTimeout(()=>msg.textContent='',3000);
+  }
 }
 
 function renderOfficePlan(){
