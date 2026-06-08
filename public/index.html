@@ -157,6 +157,11 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .coach-log-date{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);margin-bottom:6px}
 .coach-log-q{font-size:13px;font-weight:700;color:var(--text);line-height:1.6;margin-bottom:6px}
 .coach-log-a{font-size:12px;color:var(--text2);line-height:1.75;white-space:pre-wrap;background:var(--bg3);border-radius:8px;padding:10px 12px}
+.coach-log-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.coach-log-btn{border:1px solid var(--border2);background:var(--bg2);color:var(--text2);border-radius:999px;padding:5px 9px;font-size:11px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.coach-log-btn:hover{background:var(--accent-dim);color:var(--accent)}
+.coach-log-btn.danger{color:var(--danger);border-color:rgba(192,57,43,0.25)}
+.coach-log-btn.danger:hover{background:var(--danger-dim);color:var(--danger)}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -1740,7 +1745,7 @@ async function askDailyReview(){
     const data=await res.json();
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     ans.textContent=data.answer;
-    msg.textContent='明日のプランを作成しました';
+    msg.textContent='明日のプランを作成しました（履歴に保存済み）';
     loadCoachLogs();
   }catch(e){
     const text=e.message||'';
@@ -1774,7 +1779,7 @@ async function askCoach(mode){
     const data=await res.json();
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     ans.textContent=data.answer;
-    msg.textContent='回答しました';
+    msg.textContent='回答しました（履歴に保存済み）';
     loadCoachLogs();
   }catch(e){
     const text=e.message||'';
@@ -1805,16 +1810,71 @@ async function loadCoachLogs(){
       el.textContent='まだ相談履歴はありません。相談するとここに保存されます。';
       return;
     }
+    window.__coachLogs=logs;
     el.innerHTML=logs.map(log=>{
       const date=(log.created_at||'').replace('T',' ').replace('Z','');
+      const shareText=makeCoachShareText(log);
+      const encoded=encodeURIComponent(shareText);
       return `<div class="coach-log">
         <div class="coach-log-date">${date}</div>
         <div class="coach-log-q">Q. ${escapeHTML(log.question||'')}</div>
         <div class="coach-log-a">${escapeHTML(log.answer||'')}</div>
+        <div class="coach-log-actions">
+          <button class="coach-log-btn" onclick="copyCoachLog(${log.id})">コピー</button>
+          <button class="coach-log-btn" onclick="shareCoachLog(${log.id})">共有</button>
+          <a class="coach-log-btn" href="https://line.me/R/msg/text/?${encoded}" target="_blank" rel="noopener">LINE</a>
+          <a class="coach-log-btn" href="https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent('健康管理アプリの伴走相談')}&body=${encoded}" target="_blank" rel="noopener">Gmail</a>
+          <button class="coach-log-btn danger" onclick="deleteCoachLog(${log.id})">削除</button>
+        </div>
       </div>`;
     }).join('');
   }catch(e){
     el.textContent='相談履歴を読み込めませんでした: '+e.message;
+  }
+}
+
+function makeCoachShareText(log){
+  return `健康管理アプリ 伴走相談\n\n日時: ${log.created_at||''}\n\nQ. ${log.question||''}\n\n${log.answer||''}`;
+}
+
+function getCoachLogFromDOM(id){
+  return window.__coachLogs?.find(log=>Number(log.id)===Number(id));
+}
+
+async function copyCoachLog(id){
+  const log=getCoachLogFromDOM(id);
+  if(!log)return;
+  const text=makeCoachShareText(log);
+  try{
+    await navigator.clipboard.writeText(text);
+    alert('相談履歴をコピーしました');
+  }catch{
+    prompt('コピーしてください', text);
+  }
+}
+
+async function shareCoachLog(id){
+  const log=getCoachLogFromDOM(id);
+  if(!log)return;
+  const text=makeCoachShareText(log);
+  if(navigator.share){
+    try{
+      await navigator.share({title:'健康管理アプリ 伴走相談',text});
+      return;
+    }catch{}
+  }
+  await copyCoachLog(id);
+}
+
+async function deleteCoachLog(id){
+  if(!confirm('この相談履歴を削除しますか？\n途中で切れた回答などを整理できます。'))return;
+  try{
+    const res=await fetch('/api/coach/logs/'+id,{method:'DELETE'});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
+    await loadCoachLogs();
+  }catch(e){
+    alert('削除できませんでした: '+e.message);
   }
 }
 
