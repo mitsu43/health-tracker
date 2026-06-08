@@ -399,6 +399,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div class="time-grid" id="time-summary"></div>
+    <div id="office-plan-body"></div>
     <div id="routine-body"></div>
   </div>
 </div>
@@ -762,6 +763,15 @@ const TIME_BLOCKS = [
   {key:'noon', label:'昼12時', target:'食事と水分', ids:['veg_first','water_15','chew_well','seaweed','fish','no_snack']},
   {key:'pm', label:'夕3時', target:'活動量の帳尻', ids:['steps_10k','squat','pushup','hourly_walk','water_15']},
   {key:'night', label:'夜', target:'悪化を止める', ids:['light_din','no_alc','no_eat_20','sleep7','no_fried']}
+];
+
+const OFFICE_PLAN = [
+  {id:'office_commute_walk', time:'出社・帰宅', label:'一駅手前/遠回りで合計20分歩く', target:'2,000〜3,000歩', why:'通勤に組み込むと運動の意思決定が不要。LDL・HbA1c・体重に効きやすい。', tags:['ldl','hba1c','weight']},
+  {id:'office_stairs', time:'午前', label:'エレベーターを避けて階段を合計5階分', target:'合計5階', why:'短時間で心拍を上げられる。脚の筋肉を使うため血糖消費に向く。', tags:['hba1c','weight']},
+  {id:'office_lunch_walk', time:'昼休み', label:'昼食後に10分歩く', target:'10分', why:'食後血糖の上昇を抑えやすく、午後の眠気対策にもなる。', tags:['hba1c','bp']},
+  {id:'office_hourly_stand', time:'勤務中', label:'1時間ごとに立つ/フロアを1周', target:'4回以上', why:'座りっぱなしを切るだけでも血糖・血圧への負担を下げやすい。', tags:['hba1c','bp']},
+  {id:'office_desk_squat', time:'午後', label:'トイレや給湯室のついでにスクワット10回', target:'2セット', why:'人目が少ない場所で短くできる筋トレ。基礎代謝と血糖消費の補助。', tags:['hba1c','weight']},
+  {id:'office_no_sweet_drink', time:'終日', label:'甘い飲み物を避けて水/お茶にする', target:'水分1.5Lの一部', why:'オフィスで増えやすい糖質を抑え、水分量も確保できる。', tags:['hba1c','ua','weight']}
 ];
 
 const VITAL_FIELDS = ['sbp','dbp','pulse','wt','bf','vis','waist','bmr','steps','water_ml','slp','slpscore','skeletal_muscle','asm_index','lean_mass','body_water','ldl','ua','hba1c','fg','tg','hdl'];
@@ -1133,7 +1143,42 @@ function renderTodayDashboard(){
   renderDailyScore();
   renderPriority();
   renderTimeSummary();
+  renderOfficePlan();
   renderDayDiagnosis();
+}
+
+function renderOfficePlan(){
+  const el=document.getElementById('office-plan-body');
+  if(!el)return;
+  const c=today().c||{};
+  const done=OFFICE_PLAN.filter(r=>c[r.id]).length;
+  const pct=Math.round(done/OFFICE_PLAN.length*100);
+  const col=pct>=80?'var(--ok)':pct>=50?'var(--warn)':'var(--danger)';
+  const tagLabel={ldl:'LDL',ua:'尿酸',hba1c:'HbA1c',bp:'血圧',weight:'体重',sleep:'睡眠'};
+  let html=`<div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+      <div>
+        <div class="card-title" style="margin-bottom:4px">出社・オフィスワークの日の別ノルマ</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6">在宅用ノルマとは別枠です。通勤・昼休み・会議の合間で運動量を稼ぐためのプランです。</div>
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${col};white-space:nowrap">${done}/${OFFICE_PLAN.length}</div>
+    </div>
+    <div class="progress" style="margin-bottom:12px"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div>`;
+  OFFICE_PLAN.forEach(r=>{
+    const chk=!!c[r.id];
+    const tagHtml=r.tags.map(t=>`<span class="tag tag-${t}">${tagLabel[t]||t}</span>`).join('');
+    html+=`<div class="check-item${chk?' checked':''}" onclick="togOffice('${r.id}')">
+      <div class="checkbox">${chk?'<span class="check-mark">✓</span>':''}</div>
+      <div class="item-body">
+        <div class="item-title">${r.time}：${r.label}</div>
+        <div class="item-why">${r.why}</div>
+        <div class="item-meta"><span class="score-pill">目標 ${r.target}</span></div>
+        <div class="tags">${tagHtml}</div>
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  el.innerHTML=html;
 }
 
 // ========== ROUTINE ==========
@@ -1205,6 +1250,14 @@ async function tog(id){
   c[id]=!c[id];
   await saveDay(todayStr);
   renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
+}
+
+async function togOffice(id){
+  const c=today().c;
+  c[id]=!c[id];
+  await saveDay(todayStr);
+  renderOfficePlan();
+  renderDayDiagnosis();
 }
 
 // ========== RECORD ==========
@@ -1514,6 +1567,9 @@ function avgRecent(key,days){
 
 function buildCoachContext(){
   const days=recentDays(30);
+  const todayChecks=(today()&&today().c)||{};
+  const officeDone=OFFICE_PLAN.filter(r=>todayChecks[r.id]).map(r=>r.label);
+  const officeMissed=OFFICE_PLAN.filter(r=>!todayChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
   const records=days.map(date=>({date, checks:DB[date]?.c||{}, vitals:DB[date]?.v||{}}))
     .filter(r=>Object.keys(r.checks).length||Object.keys(r.vitals).length);
   const missedTop=ROUTINES.map(r=>{
@@ -1530,6 +1586,11 @@ function buildCoachContext(){
       skeletal_muscle:getLatestVal('skeletal_muscle'), asm_index:getLatestVal('asm_index'), lean_mass:getLatestVal('lean_mass'), body_water:getLatestVal('body_water')
     },
     todayVitals: DB[todayStr]?.v || {},
+    officeWorkPlan: {
+      done: officeDone,
+      missed: officeMissed,
+      completion: OFFICE_PLAN.length?Math.round(officeDone.length/OFFICE_PLAN.length*100):0
+    },
     recentAverages: {
       steps: avgRecent('steps',days), sleepHours: avgRecent('slp',days),
       waterMl: avgRecent('water_ml',days), sbp: avgRecent('sbp',days), weight: avgRecent('wt',days)
