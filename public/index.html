@@ -162,6 +162,18 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .coach-log-btn:hover{background:var(--accent-dim);color:var(--accent)}
 .coach-log-btn.danger{color:var(--danger);border-color:rgba(192,57,43,0.25)}
 .coach-log-btn.danger:hover{background:var(--danger-dim);color:var(--danger)}
+.coach-log-filter{display:grid;grid-template-columns:1fr 160px auto;gap:8px;margin-bottom:12px}
+.coach-log-filter input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none}
+.coach-log-filter input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.coach-label-summary,.coach-log-labels{display:flex;flex-wrap:wrap;gap:6px}
+.coach-label-summary{margin-bottom:12px}
+.coach-label-chip{border:1px solid var(--border2);background:var(--bg2);color:var(--text2);border-radius:999px;padding:5px 9px;font-size:11px;cursor:pointer}
+.coach-label-chip.active,.coach-label-chip:hover{background:var(--accent-dim);color:var(--accent);border-color:rgba(201,106,42,0.35)}
+.coach-log-day{border-top:1px solid var(--border);padding-top:12px;margin-top:12px}
+.coach-log-day:first-child{border-top:none;padding-top:0;margin-top:0}
+.coach-log-day-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px}
+.coach-log-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
+.coach-log-target{font-size:11px;color:var(--text3)}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -286,6 +298,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .chart-grid,.two-col{grid-template-columns:1fr}
   .coach-summary-grid,.time-grid,.quick-grid{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
+  .coach-log-filter{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr 1fr}
   .card,.score-panel,.problem-card,.chart-card,.time-card{padding:16px;border-radius:12px;margin-bottom:12px}
   .card-title{font-size:12px;margin-bottom:12px}
@@ -550,6 +563,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px">
           直近30日分の記録と目標値をもとに、今日やること・さぼってよいことを整理します。医療判断ではなく生活ログの整理です。
         </div>
+        <div class="form-group" style="margin-bottom:10px;max-width:220px">
+          <label>相談対象日</label>
+          <input type="date" id="coach-target-date">
+        </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>相談内容</label>
           <textarea id="coach-question" class="coach-question" placeholder="例: 今日は疲れていて全部は無理です。血圧と尿酸値を悪化させないために、最低限なにをすればいいですか？"></textarea>
@@ -589,6 +606,12 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <div class="card-title" style="margin-bottom:0">相談履歴</div>
         <button class="btn btn-ghost" onclick="loadCoachLogs()">履歴を更新</button>
       </div>
+      <div class="coach-log-filter">
+        <input id="coach-log-search" type="search" placeholder="キーワード・ラベルで検索" oninput="renderCoachLogList()">
+        <input id="coach-log-date-filter" type="date" onchange="renderCoachLogList()">
+        <button class="btn btn-ghost" onclick="clearCoachLogFilters()">絞り込み解除</button>
+      </div>
+      <div id="coach-label-summary" class="coach-label-summary"></div>
       <div id="coach-log-list" style="font-size:13px;color:var(--text2)">まだ読み込んでいません。</div>
     </div>
     <div class="alert-box info">
@@ -1582,6 +1605,8 @@ function setCoachPrompt(text){
 function renderCoach(){
   const el=document.getElementById('coach-local');
   if(!el)return;
+  const target=document.getElementById('coach-target-date');
+  if(target&&!target.value)target.value=todayStr;
   const hints=coachLocalHints();
   el.innerHTML=hints.map(h=>`<div class="alert-box ${h.type}">
     <div class="alert-icon">${h.icon}</div>
@@ -1634,6 +1659,10 @@ function avgRecent(key,days){
   return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
 }
 
+function getCoachTargetDate(){
+  return document.getElementById('coach-target-date')?.value || todayStr;
+}
+
 function buildCoachContext(){
   const days=recentDays(30);
   const todayChecks=(today()&&today().c)||{};
@@ -1647,6 +1676,7 @@ function buildCoachContext(){
   }).sort((a,b)=>b.missRate-a.missRate).slice(0,8);
 
   return {
+    consultDate: getCoachTargetDate(),
     goals: GOALS,
     latest: {
       wt:getLatestVal('wt'), sbp:getLatestVal('sbp'), ldl:getLatestVal('ldl'),
@@ -1808,33 +1838,137 @@ async function loadCoachLogs(){
     const logs=data.logs||[];
     if(!logs.length){
       el.textContent='まだ相談履歴はありません。相談するとここに保存されます。';
+      const summary=document.getElementById('coach-label-summary');
+      if(summary)summary.innerHTML='';
       return;
     }
-    window.__coachLogs=logs;
-    el.innerHTML=logs.map(log=>{
-      const date=(log.created_at||'').replace('T',' ').replace('Z','');
-      const shareText=makeCoachShareText(log);
-      const encoded=encodeURIComponent(shareText);
-      return `<div class="coach-log">
-        <div class="coach-log-date">${date}</div>
-        <div class="coach-log-q">Q. ${escapeHTML(log.question||'')}</div>
-        <div class="coach-log-a">${escapeHTML(log.answer||'')}</div>
-        <div class="coach-log-actions">
-          <button class="coach-log-btn" onclick="copyCoachLog(${log.id})">コピー</button>
-          <button class="coach-log-btn" onclick="shareCoachLog(${log.id})">共有</button>
-          <a class="coach-log-btn" href="https://line.me/R/msg/text/?${encoded}" target="_blank" rel="noopener">LINE</a>
-          <a class="coach-log-btn" href="https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent('健康管理アプリの伴走相談')}&body=${encoded}" target="_blank" rel="noopener">Gmail</a>
-          <button class="coach-log-btn danger" onclick="deleteCoachLog(${log.id})">削除</button>
-        </div>
-      </div>`;
-    }).join('');
+    window.__coachLogs=logs.map(enrichCoachLog);
+    renderCoachLogList();
   }catch(e){
     el.textContent='相談履歴を読み込めませんでした: '+e.message;
   }
 }
 
+function parseCoachLogContext(log){
+  try{
+    if(typeof log.context==='string')return JSON.parse(log.context||'{}');
+    return log.context||{};
+  }catch{
+    return {};
+  }
+}
+
+function enrichCoachLog(log){
+  const context=parseCoachLogContext(log);
+  const labels=classifyCoachLog(log);
+  const targetDate=context.consultDate || context.reviewDate || (log.created_at||'').slice(0,10) || todayStr;
+  return {...log,_context:context,_labels:labels,_targetDate:targetDate};
+}
+
+function classifyCoachLog(log){
+  const text=`${log.mode||''} ${log.question||''} ${log.answer||''}`.toLowerCase();
+  const rules=[
+    ['夜レビュー',/daily_review|明日のプラン|一日の終わり|振り返り|レビュー/],
+    ['運動',/歩数|散歩|運動|ステッパー|自転車|階段|筋トレ|スクワット|通勤/],
+    ['LDL',/ldl|コレステロール|脂質|揚げ物|青魚|食物繊維/],
+    ['尿酸',/尿酸|痛風|水分|飲酒|アルコール|ビール/],
+    ['HbA1c',/hba1c|血糖|糖質|間食|甘い|食後/],
+    ['血圧',/血圧|塩分|減塩|睡眠|脈拍/],
+    ['体重',/体重|腹囲|体脂肪|内臓脂肪|bmi|ウエスト/],
+    ['睡眠',/睡眠|寝不足|眠|疲れ|回復/],
+    ['外食',/外食|飲み会|コンビニ|弁当|観戦|ラーメン/],
+    ['仕事日',/オフィス|出社|テレワーク|昼休み|通勤/]
+  ];
+  const labels=rules.filter(([,re])=>re.test(text)).map(([label])=>label);
+  return labels.length?[...new Set(labels)]:['生活相談'];
+}
+
+function renderCoachLabelSummary(logs){
+  const el=document.getElementById('coach-label-summary');
+  if(!el)return;
+  const counts={};
+  (logs||[]).forEach(log=>(log._labels||[]).forEach(label=>counts[label]=(counts[label]||0)+1));
+  const labels=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  if(!labels.length){el.innerHTML='';return}
+  el.innerHTML=labels.map(([label,count])=>`
+    <button class="coach-label-chip ${window.__coachActiveLabel===label?'active':''}" onclick="setCoachLabelFilter('${escapeAttr(label)}')">${escapeHTML(label)} ${count}</button>
+  `).join('');
+}
+
+function setCoachLabelFilter(label){
+  window.__coachActiveLabel=window.__coachActiveLabel===label?'':label;
+  renderCoachLogList();
+}
+
+function clearCoachLogFilters(){
+  const search=document.getElementById('coach-log-search');
+  const date=document.getElementById('coach-log-date-filter');
+  if(search)search.value='';
+  if(date)date.value='';
+  window.__coachActiveLabel='';
+  renderCoachLogList();
+}
+
+function renderCoachLogList(){
+  const el=document.getElementById('coach-log-list');
+  if(!el)return;
+  const logs=window.__coachLogs||[];
+  renderCoachLabelSummary(logs);
+  const q=(document.getElementById('coach-log-search')?.value||'').trim().toLowerCase();
+  const dateFilter=document.getElementById('coach-log-date-filter')?.value||'';
+  const labelFilter=window.__coachActiveLabel||'';
+  const filtered=logs.filter(log=>{
+    const haystack=`${log._targetDate||''} ${(log._labels||[]).join(' ')} ${log.question||''} ${log.answer||''}`.toLowerCase();
+    if(dateFilter && log._targetDate!==dateFilter)return false;
+    if(labelFilter && !(log._labels||[]).includes(labelFilter))return false;
+    if(q && !haystack.includes(q))return false;
+    return true;
+  });
+  if(!filtered.length){
+    el.textContent='条件に合う相談履歴はありません。';
+    return;
+  }
+  const groups={};
+  filtered.forEach(log=>{
+    const key=log._targetDate||'日付なし';
+    if(!groups[key])groups[key]=[];
+    groups[key].push(log);
+  });
+  el.innerHTML=Object.entries(groups).map(([date,items])=>`
+    <div class="coach-log-day">
+      <div class="coach-log-day-title">${escapeHTML(date)} の相談 ${items.length}件</div>
+      ${items.map(renderCoachLogCard).join('')}
+    </div>
+  `).join('');
+}
+
+function renderCoachLogCard(log){
+  const date=(log.created_at||'').replace('T',' ').replace('Z','');
+  const shareText=makeCoachShareText(log);
+  const encoded=encodeURIComponent(shareText);
+  const labels=(log._labels||[]).map(label=>`<button class="coach-label-chip" onclick="setCoachLabelFilter('${escapeAttr(label)}')">${escapeHTML(label)}</button>`).join('');
+  return `<div class="coach-log">
+    <div class="coach-log-meta">
+      <div class="coach-log-date">${escapeHTML(date)}</div>
+      <div class="coach-log-target">対象日: ${escapeHTML(log._targetDate||'')}</div>
+    </div>
+    <div class="coach-log-labels">${labels}</div>
+    <div class="coach-log-q">Q. ${escapeHTML(log.question||'')}</div>
+    <div class="coach-log-a">${escapeHTML(log.answer||'')}</div>
+    <div class="coach-log-actions">
+      <button class="coach-log-btn" onclick="copyCoachLog(${log.id})">コピー</button>
+      <button class="coach-log-btn" onclick="shareCoachLog(${log.id})">共有</button>
+      <a class="coach-log-btn" href="https://line.me/R/msg/text/?${encoded}" target="_blank" rel="noopener">LINE</a>
+      <a class="coach-log-btn" href="https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent('健康管理アプリの伴走相談')}&body=${encoded}" target="_blank" rel="noopener">Gmail</a>
+      <button class="coach-log-btn danger" onclick="deleteCoachLog(${log.id})">削除</button>
+    </div>
+  </div>`;
+}
+
 function makeCoachShareText(log){
-  return `健康管理アプリ 伴走相談\n\n日時: ${log.created_at||''}\n\nQ. ${log.question||''}\n\n${log.answer||''}`;
+  const labels=(log._labels||classifyCoachLog(log)).join(' / ');
+  const target=log._targetDate || parseCoachLogContext(log).consultDate || '';
+  return `健康管理アプリ 伴走相談\n\n対象日: ${target}\nラベル: ${labels}\n日時: ${log.created_at||''}\n\nQ. ${log.question||''}\n\n${log.answer||''}`;
 }
 
 function getCoachLogFromDOM(id){
@@ -1880,6 +2014,10 @@ async function deleteCoachLog(id){
 
 function escapeHTML(s){
   return String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function escapeAttr(s){
+  return escapeHTML(s).replace(/`/g,'&#96;');
 }
 
 // ========== TRENDS ==========
