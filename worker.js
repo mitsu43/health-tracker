@@ -142,7 +142,7 @@ async function handleAPI(request, url, method, env) {
     // GET /api/coach/logs — 相談履歴を取得
     if (url.pathname === "/api/coach/logs" && method === "GET") {
       const rows = await env.DB.prepare(`
-        SELECT id, created_at, mode, question, answer
+        SELECT id, created_at, mode, question, answer, context
         FROM coach_logs
         ORDER BY id DESC
         LIMIT 50
