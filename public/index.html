@@ -494,7 +494,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         </div>
         <div class="barcode-actions">
           <button class="btn btn-primary" onclick="document.getElementById('barcode-image-file').click()">写真からまとめて読み取る</button>
-          <input type="file" id="barcode-image-file" accept="image/*" style="display:none" onchange="readBarcodeImage(event)">
+          <input type="file" id="barcode-image-file" accept="image/*,.heic,.heif" style="display:none" onchange="readBarcodeImage(event)">
           <button class="btn btn-ghost" onclick="startBarcodeScan()">QRを1枚読み取る</button>
           <button class="btn btn-ghost" onclick="stopBarcodeScan()">停止</button>
           <button class="btn btn-ghost" onclick="findMedicationByBarcode()">登録済み薬を検索</button>
@@ -1774,53 +1774,110 @@ async function readBarcodeImage(event){
     setBarcodeMsg('写真からQRを読み取っています...');
     const image=await loadBarcodeImage(file);
     const rawCodes=await detectCodesFromImage(image);
-    URL.revokeObjectURL(image.src);
+    // canvasはsrcプロパティを持たないのでrevokeは条件付きで
+    if(image.src) URL.revokeObjectURL(image.src);
     if(!rawCodes.length){
-      setBarcodeMsg('QRを検出できませんでした。紙を横向きのまま全体撮影、またはQRを1つずつ大きく撮ってください。','danger');
+      setBarcodeMsg('QRを検出できませんでした。\n①薬袋を白い台に置いて真上から撮影\n②QRを画面の6〜7割の大きさで撮影\n③照明の反射がない場所で撮影\nしてから再試行してください。','danger');
       return;
     }
     let added=0;
     rawCodes.forEach(code=>{if(addBarcodeCode(code))added++});
     if(added){
-      setBarcodeMsg(`読み取り完了: ${added}件追加、合計${barcodeCodes.length}件です。`,'ok');
+      setBarcodeMsg(`✅ 読み取り完了: ${added}件追加、合計${barcodeCodes.length}件です。`,'ok');
     }else{
       setBarcodeMsg(`読み取り完了: すべて登録済みでした（合計${barcodeCodes.length}件）。`,'ok');
     }
   }catch(e){
-    setBarcodeMsg('写真から読み取れませんでした: '+(e.message||e),'danger');
+    setBarcodeMsg('❌ '+( e.message||'写真から読み取れませんでした'),'danger');
   }
 }
 
-function loadBarcodeImage(file){
-  return new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.onload=()=>resolve(img);
-    img.onerror=()=>reject(new Error('画像を読み込めませんでした'));
-    img.src=URL.createObjectURL(file);
-  });
+async function loadBarcodeImage(file){
+  // HEIC/HEIF (iPhoneデフォルト形式) はcreateImageBitmapで処理する
+  // createImageBitmapはiOS Safari 15+でHEICに対応している
+  try{
+    const bitmap=await createImageBitmap(file);
+    // ImageBitmapをcanvasに描いてHTMLImageElementとして返す
+    const canvas=document.createElement('canvas');
+    canvas.width=bitmap.width;
+    canvas.height=bitmap.height;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(bitmap,0,0);
+    bitmap.close();
+    // canvas自体をsourceとして返す（drawImage対応）
+    return canvas;
+  }catch(bitmapErr){
+    // createImageBitmapが失敗した場合（古いブラウザ等）はimgタグで試みる
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>resolve(img);
+      img.onerror=()=>{
+        const ext=(file.name||'').split('.').pop().toUpperCase();
+        if(ext==='HEIC'||ext==='HEIF'){
+          reject(new Error('HEIC形式の変換に失敗しました。写真アプリで「JPEG互換」に設定するか、カメラロールからJPEGで保存し直してください。'));
+        }else{
+          reject(new Error('画像を読み込めませんでした（'+ext+'形式）'));
+        }
+      };
+      img.src=URL.createObjectURL(file);
+    });
+  }
 }
 
 async function detectCodesFromImage(source){
   const found=[];
+
+  // ① BarcodeDetector API (Android Chrome / macOS Safari 17+)
   if('BarcodeDetector' in window){
     try{
       const formats=await BarcodeDetector.getSupportedFormats?.() || [];
       const preferred=['qr_code','data_matrix','ean_13','ean_8','code_128','code_39','itf'].filter(f=>!formats.length||formats.includes(f));
       const detector=new BarcodeDetector({formats:preferred});
+      // canvasはImageBitmapSourceとして渡せる
       const detected=await detector.detect(source);
       detected.forEach(item=>found.push(item.rawValue));
-    }catch{}
+    }catch(e){
+      console.warn('BarcodeDetector failed:',e);
+    }
   }
+
+  // ② jsQR (QRコード専用、iOS Safari含む全環境で動作)
   if(window.jsQR){
+    // オリジナル解像度でスキャン
     scanImageWithJsQR(source).forEach(code=>found.push(code));
+    // コントラスト強調版でも試みる（薄い・反射した薬袋のQRに有効）
+    const enhanced=enhanceContrast(source);
+    if(enhanced){
+      scanImageWithJsQR(enhanced).forEach(code=>found.push(code));
+    }
   }
+
   return [...new Set(found.map(normalizeBarcode).filter(Boolean))];
+}
+
+// コントラスト強調 + 二値化（薬袋の照り返しや薄いQRに対応）
+function enhanceContrast(source){
+  try{
+    const {width,height}=getImageSize(source);
+    if(!width||!height)return null;
+    const scale=Math.min(1,1600/Math.max(width,height));
+    const w=Math.max(1,Math.round(width*scale));
+    const h=Math.max(1,Math.round(height*scale));
+    const canvas=document.createElement('canvas');
+    canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    // コントラスト強調フィルター
+    ctx.filter='contrast(1.8) brightness(1.1)';
+    ctx.drawImage(source,0,0,w,h);
+    ctx.filter='none';
+    return canvas;
+  }catch{return null}
 }
 
 function getImageSize(source){
   return {
-    width:source.naturalWidth||source.videoWidth||source.width,
-    height:source.naturalHeight||source.videoHeight||source.height
+    width: source.naturalWidth||source.videoWidth||source.width||0,
+    height:source.naturalHeight||source.videoHeight||source.height||0
   };
 }
 
