@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 :root {
   /* Claude.ai light theme palette */
@@ -1768,25 +1769,18 @@ async function readBarcodeImage(event){
   const file=event.target.files?.[0];
   event.target.value='';
   if(!file)return;
-  if(!('BarcodeDetector' in window)){
-    setBarcodeMsg('このブラウザは画像からのQR読み取りに未対応です。コードを手入力してください。','danger');
-    return;
-  }
   try{
     stopBarcodeScan(false);
     setBarcodeMsg('写真からQRを読み取っています...');
-    const formats=await BarcodeDetector.getSupportedFormats?.() || [];
-    const preferred=['qr_code','data_matrix','ean_13','ean_8','code_128','code_39','itf'].filter(f=>!formats.length||formats.includes(f));
-    const detector=new BarcodeDetector({formats:preferred});
     const bitmap=await createImageBitmap(file);
-    const codes=await detector.detect(bitmap);
+    const rawCodes=await detectCodesFromImage(bitmap);
     bitmap.close?.();
-    if(!codes.length){
-      setBarcodeMsg('QRを検出できませんでした。写真を明るく、QR全体が入るように撮り直してください。','danger');
+    if(!rawCodes.length){
+      setBarcodeMsg('QRを検出できませんでした。紙を横向きのまま全体撮影、またはQRを1つずつ大きく撮ってください。','danger');
       return;
     }
     let added=0;
-    codes.forEach(item=>{if(addBarcodeCode(item.rawValue))added++});
+    rawCodes.forEach(code=>{if(addBarcodeCode(code))added++});
     if(added){
       setBarcodeMsg(`読み取り完了: ${added}件追加、合計${barcodeCodes.length}件です。`,'ok');
     }else{
@@ -1795,6 +1789,69 @@ async function readBarcodeImage(event){
   }catch(e){
     setBarcodeMsg('写真から読み取れませんでした: '+(e.message||e),'danger');
   }
+}
+
+async function detectCodesFromImage(bitmap){
+  const found=[];
+  if('BarcodeDetector' in window){
+    try{
+      const formats=await BarcodeDetector.getSupportedFormats?.() || [];
+      const preferred=['qr_code','data_matrix','ean_13','ean_8','code_128','code_39','itf'].filter(f=>!formats.length||formats.includes(f));
+      const detector=new BarcodeDetector({formats:preferred});
+      const detected=await detector.detect(bitmap);
+      detected.forEach(item=>found.push(item.rawValue));
+    }catch{}
+  }
+  if(window.jsQR){
+    scanBitmapWithJsQR(bitmap).forEach(code=>found.push(code));
+  }
+  return [...new Set(found.map(normalizeBarcode).filter(Boolean))];
+}
+
+function scanBitmapWithJsQR(bitmap){
+  const results=[];
+  const maxDim=1400;
+  const scale=Math.min(1,maxDim/Math.max(bitmap.width,bitmap.height));
+  const baseW=Math.max(1,Math.round(bitmap.width*scale));
+  const baseH=Math.max(1,Math.round(bitmap.height*scale));
+  const rotations=[0,90,180,270];
+  rotations.forEach(rot=>{
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    const swap=rot===90||rot===270;
+    canvas.width=swap?baseH:baseW;
+    canvas.height=swap?baseW:baseH;
+    ctx.save();
+    if(rot===90){ctx.translate(canvas.width,0);ctx.rotate(Math.PI/2)}
+    else if(rot===180){ctx.translate(canvas.width,canvas.height);ctx.rotate(Math.PI)}
+    else if(rot===270){ctx.translate(0,canvas.height);ctx.rotate(-Math.PI/2)}
+    ctx.drawImage(bitmap,0,0,baseW,baseH);
+    ctx.restore();
+    scanCanvasTiles(canvas).forEach(code=>results.push(code));
+  });
+  return [...new Set(results.map(normalizeBarcode).filter(Boolean))];
+}
+
+function scanCanvasTiles(canvas){
+  const results=[];
+  const tiles=[
+    [0,0,1,1],
+    [0,0,1,0.55],[0,0.45,1,0.55],
+    [0,0,0.55,1],[0.45,0,0.55,1],
+    [0,0,0.6,0.6],[0.4,0,0.6,0.6],[0,0.4,0.6,0.6],[0.4,0.4,0.6,0.6]
+  ];
+  tiles.forEach(([rx,ry,rw,rh])=>{
+    const sx=Math.floor(canvas.width*rx), sy=Math.floor(canvas.height*ry);
+    const sw=Math.max(1,Math.floor(canvas.width*rw)), sh=Math.max(1,Math.floor(canvas.height*rh));
+    const tmp=document.createElement('canvas');
+    tmp.width=sw;tmp.height=sh;
+    const tctx=tmp.getContext('2d',{willReadFrequently:true});
+    tctx.drawImage(canvas,sx,sy,sw,sh,0,0,sw,sh);
+    const imageData=tctx.getImageData(0,0,sw,sh);
+    const code=jsQR(imageData.data,sw,sh,{inversionAttempts:'attemptBoth'});
+    if(code?.data)results.push(code.data);
+  });
+  return results;
 }
 
 async function startBarcodeScan(){
