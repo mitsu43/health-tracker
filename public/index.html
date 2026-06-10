@@ -186,6 +186,13 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .med-mini-btn{border:1px solid var(--border2);background:var(--bg2);color:var(--text2);border-radius:999px;padding:3px 7px;font-size:10px;cursor:pointer;white-space:nowrap}
 .med-mini-btn:hover{background:var(--accent-dim);color:var(--accent)}
 .med-empty{font-size:11px;color:var(--text3);line-height:1.5}
+.med-period{font-size:11px;color:var(--text2);margin-top:3px}
+.med-calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.med-cal-cell{min-height:64px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:11px;color:var(--text2);line-height:1.35}
+.med-cal-cell.has-med{background:var(--accent-dim);border-color:rgba(201,106,42,0.25)}
+.med-cal-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);margin-bottom:3px}
+.med-cal-count{font-weight:700;color:var(--accent);font-size:11px}
+.med-cal-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -313,6 +320,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .coach-log-filter{grid-template-columns:1fr}
   .med-matrix{min-width:680px}
   .med-matrix-wrap{overflow-x:auto}
+  .med-calendar{min-width:680px}
+  .med-calendar-wrap{overflow-x:auto}
   .form-grid{grid-template-columns:1fr 1fr}
   .card,.score-panel,.problem-card,.chart-card,.time-card{padding:16px;border-radius:12px;margin-bottom:12px}
   .card-title{font-size:12px;margin-bottom:12px}
@@ -482,6 +491,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
           </select>
         </div>
         <div class="form-group"><label>メモ</label><input type="text" id="med-note" placeholder="例: 食後、寝る前など"></div>
+        <div class="form-group"><label>処方開始日</label><input type="date" id="med-start"></div>
+        <div class="form-group"><label>処方日数（日分）</label><input type="number" id="med-days" min="1" placeholder="例: 30"></div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="addMedication()">薬を追加</button>
@@ -491,6 +502,11 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="card">
       <div class="card-title">目的 × 朝昼晩 マトリックス</div>
       <div id="med-matrix-body"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">服薬期間カレンダー</div>
+      <div class="quick-note" style="margin-bottom:10px">処方開始日と日数から、いつからいつまでの薬かを表示します。</div>
+      <div id="med-calendar-body"></div>
     </div>
     <div class="alert-box info">
       <div class="alert-icon">ℹ️</div>
@@ -1034,6 +1050,9 @@ function setStatus(type, msg){
 function fmtD(d){return d.getFullYear()+'-'+(d.getMonth()+1+'').padStart(2,'0')+'-'+(d.getDate()+'').padStart(2,'0')}
 function fmtJP(s){const[y,m,d]=s.split('-');return `${y}年${parseInt(m)}月${parseInt(d)}日`}
 function fmtShort(s){const[,m,d]=s.split('-');return `${parseInt(m)}/${parseInt(d)}`}
+function parseDateLocal(s){if(!s)return null;const[y,m,d]=String(s).split('-').map(Number);return y&&m&&d?new Date(y,m-1,d):null}
+function addDaysStr(s,n){const d=parseDateLocal(s);if(!d)return '';d.setDate(d.getDate()+n);return fmtD(d)}
+function daysBetweenInclusive(start,end){const a=parseDateLocal(start),b=parseDateLocal(end);if(!a||!b)return null;return Math.round((b-a)/86400000)+1}
 
 // ========== NAV ==========
 function sw(name){
@@ -1442,13 +1461,16 @@ function medCheckId(id){
 }
 
 function renderMedPage(){
+  const start=document.getElementById('med-start');
+  if(start&&!start.value)start.value=todayStr;
   renderMedMatrix('med-matrix-body',{editable:true,checkable:false});
+  renderMedCalendar();
 }
 
 function renderTodayMeds(){
   const el=document.getElementById('today-med-body');
   if(!el)return;
-  const meds=getMeds().filter(m=>m.active!==false);
+  const meds=getMeds().filter(m=>m.active!==false&&isMedActiveOn(m,todayStr));
   if(!meds.length){
     el.innerHTML=`<div class="card">
       <div class="card-title">💊 今日の服薬</div>
@@ -1470,7 +1492,7 @@ function renderTodayMeds(){
 function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
   const el=document.getElementById(targetId);
   if(!el)return;
-  const meds=getMeds().filter(m=>m.active!==false);
+  const meds=getMeds().filter(m=>m.active!==false&&(checkable?isMedActiveOn(m,todayStr):true));
   const catKeys=Object.keys(MED_CATS);
   const timeKeys=Object.keys(MED_TIMES);
   if(!meds.length){
@@ -1495,12 +1517,14 @@ function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
 function renderMedPill(m,{editable=false,checkable=false,checked=false}={}){
   const tag=MED_CATS[m.category]?.tag||'bp';
   const note=m.note?`<div class="med-note">${escapeHTML(m.note)}</div>`:'';
+  const period=getMedPeriodText(m);
   const checkButton=checkable?`<button class="med-mini-btn" onclick="togMed('${escapeAttr(m.id)}')">${checked?'済':'飲んだ'}</button>`:'';
   const deleteButton=editable?`<button class="med-mini-btn" onclick="deleteMedication('${escapeAttr(m.id)}')">削除</button>`:'';
   return `<div class="med-pill${checked?' checked':''}">
     <div>
       <div class="med-name">${escapeHTML(m.name||'名称未設定')}</div>
       ${note}
+      <div class="med-period">${escapeHTML(period)}</div>
       <div class="tags" style="margin-top:6px"><span class="tag tag-${tag}">${escapeHTML(MED_CATS[m.category]?.label||'その他')}</span></div>
     </div>
     <div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end">${checkButton}${deleteButton}</div>
@@ -1512,12 +1536,16 @@ async function addMedication(){
   const category=document.getElementById('med-category')?.value||'other';
   const time=document.getElementById('med-time')?.value||'am';
   const note=document.getElementById('med-note')?.value.trim()||'';
+  const startDate=document.getElementById('med-start')?.value||'';
+  const daysSupplyRaw=document.getElementById('med-days')?.value||'';
+  const daysSupply=daysSupplyRaw?parseInt(daysSupplyRaw,10):null;
   const msg=document.getElementById('med-save-msg');
   if(!name){if(msg)msg.textContent='薬名を入力してください';return}
+  if(daysSupplyRaw && (!daysSupply || daysSupply<1)){if(msg)msg.textContent='処方日数は1以上で入力してください';return}
   const meds=getMeds();
-  meds.push({id:'m'+Date.now().toString(36),name,category,time,note,active:true});
+  meds.push({id:'m'+Date.now().toString(36),name,category,time,note,startDate,daysSupply,active:true});
   await persistGoals();
-  ['med-name','med-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   if(msg){msg.textContent='薬を追加しました';setTimeout(()=>msg.textContent='',2500)}
   renderMedPage();
   renderTodayMeds();
@@ -1529,6 +1557,65 @@ async function deleteMedication(id){
   await persistGoals();
   renderMedPage();
   renderTodayMeds();
+}
+
+function getMedEndDate(m){
+  if(!m.startDate||!m.daysSupply)return '';
+  return addDaysStr(m.startDate,Number(m.daysSupply)-1);
+}
+
+function isMedActiveOn(m,dateStr){
+  if(!m.startDate||!m.daysSupply)return true;
+  const end=getMedEndDate(m);
+  return dateStr>=m.startDate && dateStr<=end;
+}
+
+function getMedPeriodText(m){
+  if(!m.startDate||!m.daysSupply)return '期間指定なし';
+  const end=getMedEndDate(m);
+  return `${fmtShort(m.startDate)}〜${fmtShort(end)}（${m.daysSupply}日分）`;
+}
+
+function renderMedCalendar(){
+  const el=document.getElementById('med-calendar-body');
+  if(!el)return;
+  const meds=getMeds().filter(m=>m.active!==false&&m.startDate&&m.daysSupply);
+  if(!meds.length){
+    el.innerHTML='<div class="quick-note">処方開始日と日数が入った薬はまだありません。</div>';
+    return;
+  }
+  const ranges=meds.map(m=>({m,end:getMedEndDate(m)})).filter(x=>x.end);
+  const minStart=ranges.map(x=>x.m.startDate).sort()[0] || todayStr;
+  const maxEnd=ranges.map(x=>x.end).sort().slice(-1)[0] || todayStr;
+  let start=parseDateLocal(minStart);
+  let end=parseDateLocal(maxEnd);
+  const todayDate=parseDateLocal(todayStr);
+  if(todayDate<start)start=todayDate;
+  if(todayDate>end)end=todayDate;
+  start.setDate(start.getDate()-start.getDay());
+  const days=daysBetweenInclusive(fmtD(start),fmtD(end));
+  let total=Math.max(35,days+(7-(days%7||7)));
+  if(total>98){
+    start=new Date(end);
+    start.setDate(start.getDate()-97);
+    start.setDate(start.getDate()-start.getDay());
+    total=98;
+  }
+  const labels=['日','月','火','水','木','金','土'].map(d=>`<div class="cal-day-label">${d}</div>`).join('');
+  let html=`<div class="med-calendar-wrap"><div class="cal-header">${labels}</div><div class="med-calendar">`;
+  for(let i=0;i<total;i++){
+    const d=new Date(start);d.setDate(start.getDate()+i);
+    const s=fmtD(d);
+    const active=meds.filter(m=>isMedActiveOn(m,s));
+    const names=active.slice(0,3).map(m=>`<div class="med-cal-name">${escapeHTML(m.name)}</div>`).join('');
+    const extra=active.length>3?`<div class="med-cal-name">他${active.length-3}件</div>`:'';
+    html+=`<div class="med-cal-cell ${active.length?'has-med':''}" title="${escapeAttr(active.map(m=>m.name).join(' / '))}">
+      <div class="med-cal-date">${fmtShort(s)}${s===todayStr?' 今日':''}</div>
+      ${active.length?`<div class="med-cal-count">${active.length}件</div>${names}${extra}`:''}
+    </div>`;
+  }
+  html+='</div></div>';
+  el.innerHTML=html;
 }
 
 async function togMed(id){
@@ -1856,8 +1943,9 @@ function buildCoachContext(){
   const officeDone=OFFICE_PLAN.filter(r=>todayChecks[r.id]).map(r=>r.label);
   const officeMissed=OFFICE_PLAN.filter(r=>!todayChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
   const meds=getMeds().filter(m=>m.active!==false);
-  const medDone=meds.filter(m=>todayChecks[medCheckId(m.id)]).map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||''}));
-  const medMissed=meds.filter(m=>!todayChecks[medCheckId(m.id)]).map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',note:m.note||''}));
+  const medToday=meds.filter(m=>isMedActiveOn(m,todayStr));
+  const medDone=medToday.filter(m=>todayChecks[medCheckId(m.id)]).map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',period:getMedPeriodText(m)}));
+  const medMissed=medToday.filter(m=>!todayChecks[medCheckId(m.id)]).map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',note:m.note||'',period:getMedPeriodText(m)}));
   const records=days.map(date=>({date, checks:DB[date]?.c||{}, vitals:DB[date]?.v||{}}))
     .filter(r=>Object.keys(r.checks).length||Object.keys(r.vitals).length);
   const missedTop=ROUTINES.map(r=>{
@@ -1881,10 +1969,10 @@ function buildCoachContext(){
       completion: OFFICE_PLAN.length?Math.round(officeDone.length/OFFICE_PLAN.length*100):0
     },
     medicationPlan: {
-      medicines: meds.map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',note:m.note||''})),
+      medicines: meds.map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',note:m.note||'',period:getMedPeriodText(m),activeToday:isMedActiveOn(m,todayStr)})),
       done: medDone,
       missed: medMissed,
-      completion: meds.length?Math.round(medDone.length/meds.length*100):0
+      completion: medToday.length?Math.round(medDone.length/medToday.length*100):0
     },
     recentAverages: {
       steps: avgRecent('steps',days), sleepHours: avgRecent('slp',days),
