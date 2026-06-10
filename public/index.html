@@ -979,6 +979,8 @@ let onlineRetryStarted = false;
 let barcodeStream = null;
 let barcodeScanTimer = null;
 let barcodeCodes = [];
+let barcodeScanning = false;
+let barcodeDetecting = false;
 
 // ========== STORAGE (Cloudflare D1 API) ==========
 // オフライン書き込みキュー：API呼び出し失敗時にlocalStorageへフォールバック
@@ -1780,28 +1782,46 @@ async function startBarcodeScan(){
     video.srcObject=barcodeStream;
     video.style.display='block';
     await video.play();
-    setBarcodeMsg('読み取り中です。複数QRを順番にカメラへ映してください。すべて拾えたら停止してください。');
-    barcodeScanTimer=setInterval(async ()=>{
-      try{
-        const codes=await detector.detect(video);
-        if(codes&&codes.length){
-          let added=0;
-          codes.forEach(item=>{if(addBarcodeCode(item.rawValue))added++});
-          if(added){
-            setBarcodeMsg(`読み取りました: 合計${barcodeCodes.length}件。すべて読み取ったら「停止」を押してください。`,'ok');
-          }
-        }
-      }catch{}
-    },500);
+    barcodeScanning=true;
+    setBarcodeMsg('読み取り中です。1つ読めたら一瞬止まります。次のQRへゆっくり動かしてください。');
+    runBarcodeScanLoop(detector,video,300);
   }catch(e){
     stopBarcodeScan();
     setBarcodeMsg('カメラを開始できませんでした: '+(e.message||e),'danger');
   }
 }
 
+function runBarcodeScanLoop(detector,video,delay=700){
+  if(!barcodeScanning||!barcodeStream)return;
+  barcodeScanTimer=setTimeout(async ()=>{
+    if(!barcodeScanning||barcodeDetecting)return runBarcodeScanLoop(detector,video,delay);
+    if(video.readyState<2)return runBarcodeScanLoop(detector,video,700);
+    barcodeDetecting=true;
+    let nextDelay=700;
+    try{
+      const codes=await detector.detect(video);
+      if(codes&&codes.length){
+        let added=0;
+        codes.forEach(item=>{if(addBarcodeCode(item.rawValue))added++});
+        if(added){
+          nextDelay=1400;
+          setBarcodeMsg(`読み取りました: 合計${barcodeCodes.length}件。次のQRへ動かしてください。終わったら「停止」。`,'ok');
+        }
+      }
+    }catch(e){
+      nextDelay=1000;
+    }finally{
+      barcodeDetecting=false;
+      runBarcodeScanLoop(detector,video,nextDelay);
+    }
+  },delay);
+}
+
 function stopBarcodeScan(){
+  barcodeScanning=false;
+  barcodeDetecting=false;
   if(barcodeScanTimer){
-    clearInterval(barcodeScanTimer);
+    clearTimeout(barcodeScanTimer);
     barcodeScanTimer=null;
   }
   if(barcodeStream){
