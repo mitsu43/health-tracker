@@ -197,6 +197,9 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .med-schedule-col{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px}
 .med-schedule-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px}
 .med-schedule-list{display:flex;flex-direction:column;gap:6px}
+.barcode-box{border:1px solid var(--border);background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:12px}
+.barcode-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.barcode-video{width:100%;max-height:260px;background:#111;border-radius:10px;margin-top:10px;display:none;object-fit:cover}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -479,6 +482,19 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       <div class="card-title">薬を登録</div>
       <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
         薬名、目的、飲むタイミングを登録します。服薬の変更・中止判断は必ず医師や薬剤師の指示に従ってください。
+      </div>
+      <div class="barcode-box">
+        <div class="form-group">
+          <label>バーコード / GS1コード</label>
+          <input type="text" id="med-barcode" placeholder="カメラで読み取り、または手入力">
+        </div>
+        <div class="barcode-actions">
+          <button class="btn btn-ghost" onclick="startBarcodeScan()">カメラで読み取る</button>
+          <button class="btn btn-ghost" onclick="stopBarcodeScan()">停止</button>
+          <button class="btn btn-ghost" onclick="findMedicationByBarcode()">登録済み薬を検索</button>
+          <span id="barcode-msg" style="font-size:12px;color:var(--text2)"></span>
+        </div>
+        <video id="barcode-video" class="barcode-video" playsinline muted></video>
       </div>
       <div class="form-grid">
         <div class="form-group"><label>薬名</label><input type="text" id="med-name" placeholder="例: ○○錠 10mg"></div>
@@ -954,6 +970,8 @@ let todayStr = fmtD(new Date());
 let recDateStr = todayStr;
 let charts = {};
 let onlineRetryStarted = false;
+let barcodeStream = null;
+let barcodeScanTimer = null;
 
 // ========== STORAGE (Cloudflare D1 API) ==========
 // オフライン書き込みキュー：API呼び出し失敗時にlocalStorageへフォールバック
@@ -1503,6 +1521,18 @@ function isMedDoseChecked(checks,m,time){
   return !!(checks[medDoseCheckId(m.id,time)] || checks[medCheckId(m.id)]);
 }
 
+function setBarcodeMsg(text,type=''){
+  const el=document.getElementById('barcode-msg');
+  if(el){
+    el.textContent=text||'';
+    el.style.color=type==='ok'?'var(--ok)':type==='danger'?'var(--danger)':'var(--text2)';
+  }
+}
+
+function normalizeBarcode(v){
+  return String(v||'').replace(/\s+/g,'').trim();
+}
+
 function renderMedPage(){
   const start=document.getElementById('med-start');
   if(start&&!start.value)start.value=todayStr;
@@ -1591,6 +1621,7 @@ function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}=
   return `<div class="med-pill${checked?' checked':''}">
     <div>
       <div class="med-name">${escapeHTML(m.name||'名称未設定')}</div>
+      ${m.barcode?`<div class="med-note">コード: ${escapeHTML(m.barcode)}</div>`:''}
       <div class="med-note">タイミング: ${escapeHTML(doseLabel)}</div>
       ${note}
       <div class="med-period">${escapeHTML(period)}</div>
@@ -1601,6 +1632,7 @@ function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}=
 }
 
 async function addMedication(){
+  const barcode=normalizeBarcode(document.getElementById('med-barcode')?.value||'');
   const name=document.getElementById('med-name')?.value.trim();
   const category=document.getElementById('med-category')?.value||'other';
   const timeValue=document.getElementById('med-time')?.value||'am';
@@ -1614,7 +1646,7 @@ async function addMedication(){
   if(daysSupplyRaw && (!daysSupply || daysSupply<1)){if(msg)msg.textContent='処方日数は1以上で入力してください';return}
   const meds=getMeds();
   const editId=document.getElementById('med-edit-id')?.value||'';
-  const payload={name,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true};
+  const payload={name,barcode,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true};
   if(editId){
     const target=meds.find(m=>String(m.id)===String(editId));
     if(target)Object.assign(target,payload);
@@ -1633,6 +1665,7 @@ function editMedication(id){
   if(!m)return;
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val??''};
   set('med-edit-id',m.id);
+  set('med-barcode',m.barcode||'');
   set('med-name',m.name||'');
   set('med-category',m.category||'other');
   set('med-time',medTimes(m).join(','));
@@ -1647,7 +1680,7 @@ function editMedication(id){
 }
 
 function resetMedicationForm(){
-  ['med-edit-id','med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['med-edit-id','med-barcode','med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   const start=document.getElementById('med-start');
   if(start)start.value=todayStr;
   const time=document.getElementById('med-time');
@@ -1658,6 +1691,76 @@ function resetMedicationForm(){
   const cancel=document.getElementById('med-cancel-btn');
   if(btn)btn.textContent='薬を追加';
   if(cancel)cancel.style.display='none';
+}
+
+function findMedicationByBarcode(){
+  const code=normalizeBarcode(document.getElementById('med-barcode')?.value||'');
+  if(!code){setBarcodeMsg('バーコードを入力してください','danger');return}
+  const hit=getMeds().find(m=>normalizeBarcode(m.barcode)===code);
+  if(hit){
+    editMedication(hit.id);
+    setBarcodeMsg('登録済みの薬を表示しました','ok');
+  }else{
+    setBarcodeMsg('同じバーコードの登録はまだありません');
+  }
+}
+
+async function startBarcodeScan(){
+  const video=document.getElementById('barcode-video');
+  if(!video)return;
+  if(!('BarcodeDetector' in window)){
+    setBarcodeMsg('このブラウザはカメラ読み取りに未対応です。コードを手入力してください。','danger');
+    return;
+  }
+  if(!navigator.mediaDevices?.getUserMedia){
+    setBarcodeMsg('カメラを使えません。HTTPSの公開ページで開いてください。','danger');
+    return;
+  }
+  try{
+    stopBarcodeScan();
+    const formats=await BarcodeDetector.getSupportedFormats?.() || [];
+    const preferred=['ean_13','ean_8','code_128','code_39','itf','qr_code','data_matrix'].filter(f=>!formats.length||formats.includes(f));
+    const detector=new BarcodeDetector({formats:preferred});
+    barcodeStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    video.srcObject=barcodeStream;
+    video.style.display='block';
+    await video.play();
+    setBarcodeMsg('読み取り中です。バーコードをカメラに映してください。');
+    barcodeScanTimer=setInterval(async ()=>{
+      try{
+        const codes=await detector.detect(video);
+        if(codes&&codes.length){
+          const raw=normalizeBarcode(codes[0].rawValue);
+          if(raw){
+            document.getElementById('med-barcode').value=raw;
+            setBarcodeMsg('読み取りました: '+raw,'ok');
+            stopBarcodeScan();
+            findMedicationByBarcode();
+          }
+        }
+      }catch{}
+    },500);
+  }catch(e){
+    stopBarcodeScan();
+    setBarcodeMsg('カメラを開始できませんでした: '+(e.message||e),'danger');
+  }
+}
+
+function stopBarcodeScan(){
+  if(barcodeScanTimer){
+    clearInterval(barcodeScanTimer);
+    barcodeScanTimer=null;
+  }
+  if(barcodeStream){
+    barcodeStream.getTracks().forEach(t=>t.stop());
+    barcodeStream=null;
+  }
+  const video=document.getElementById('barcode-video');
+  if(video){
+    video.pause();
+    video.srcObject=null;
+    video.style.display='none';
+  }
 }
 
 function cancelMedicationEdit(){
