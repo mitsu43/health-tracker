@@ -1530,8 +1530,13 @@ function medDoseCheckId(id,time){
 }
 
 function medTimes(m){
+  if(m.source==='csv'&&m.timeInferred!==true){
+    const parsed=parseMedicationTimesFromText(`${m.note||''} ${m.usage||''}`);
+    return parsed.length?parsed:[];
+  }
   if(Array.isArray(m.times)&&m.times.length)return m.times;
   if(typeof m.time==='string'&&m.time.includes(','))return m.time.split(',').filter(Boolean);
+  if(m.source==='csv'&&m.timeInferred===false)return [];
   return [m.time||'am'];
 }
 
@@ -1739,8 +1744,9 @@ function extractMedsFromCsv(rows,fileName=''){
       id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
       name:name.replace(/\s+/g,' ').trim(),
       category:classifyMedicationCategory(name),
-      time:times[0]||'am',
+      time:times[0]||'',
       times,
+      timeInferred:times.length>0,
       note,
       startDate,
       endDate,
@@ -1797,7 +1803,6 @@ function parseMedicationTimesFromText(text){
   if(/夕|晩|夜|夕食|寝る|就寝/.test(t))times.push('night');
   if(!times.length&&/1日\s*3\s*回|毎食/.test(t))return ['am','noon','night'];
   if(!times.length&&/1日\s*2\s*回/.test(t))return ['am','night'];
-  if(!times.length)return ['am'];
   return [...new Set(times)];
 }
 
@@ -2179,8 +2184,8 @@ function getMedEndDate(m){
 }
 
 function isMedActiveOn(m,dateStr){
-  if(!m.startDate||!m.daysSupply)return true;
   const end=getMedEndDate(m);
+  if(!m.startDate||!end)return m.source==='csv'?false:true;
   return dateStr>=m.startDate && dateStr<=end;
 }
 
