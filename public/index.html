@@ -200,6 +200,9 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .barcode-box{border:1px solid var(--border);background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:12px}
 .barcode-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .barcode-video{width:100%;max-height:260px;background:#111;border-radius:10px;margin-top:10px;display:none;object-fit:cover}
+.barcode-list{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.barcode-item{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:11px;color:var(--text2);word-break:break-all}
+.barcode-count{font-size:11px;color:var(--text3);margin-top:6px}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -485,15 +488,18 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
       <div class="barcode-box">
         <div class="form-group">
-          <label>バーコード / GS1コード</label>
-          <input type="text" id="med-barcode" placeholder="カメラで読み取り、または手入力">
+          <label>電子お薬手帳QR / バーコード</label>
+          <textarea id="med-barcode" rows="3" placeholder="複数QRは1行に1コードで保存します。カメラで読み取り、または手入力してください。"></textarea>
         </div>
         <div class="barcode-actions">
-          <button class="btn btn-ghost" onclick="startBarcodeScan()">カメラで読み取る</button>
+          <button class="btn btn-ghost" onclick="startBarcodeScan()">複数QRを読み取る</button>
           <button class="btn btn-ghost" onclick="stopBarcodeScan()">停止</button>
           <button class="btn btn-ghost" onclick="findMedicationByBarcode()">登録済み薬を検索</button>
+          <button class="btn btn-ghost" onclick="clearBarcodeCodes()">読み取り結果をクリア</button>
           <span id="barcode-msg" style="font-size:12px;color:var(--text2)"></span>
         </div>
+        <div id="barcode-count" class="barcode-count"></div>
+        <div id="barcode-list" class="barcode-list"></div>
         <video id="barcode-video" class="barcode-video" playsinline muted></video>
       </div>
       <div class="form-grid">
@@ -972,6 +978,7 @@ let charts = {};
 let onlineRetryStarted = false;
 let barcodeStream = null;
 let barcodeScanTimer = null;
+let barcodeCodes = [];
 
 // ========== STORAGE (Cloudflare D1 API) ==========
 // オフライン書き込みキュー：API呼び出し失敗時にlocalStorageへフォールバック
@@ -1533,6 +1540,47 @@ function normalizeBarcode(v){
   return String(v||'').replace(/\s+/g,'').trim();
 }
 
+function parseBarcodeInput(){
+  const raw=document.getElementById('med-barcode')?.value||'';
+  return [...new Set(raw.split(/\n+/).map(normalizeBarcode).filter(Boolean))];
+}
+
+function syncBarcodeInput(codes=barcodeCodes){
+  const unique=[...new Set((codes||[]).map(normalizeBarcode).filter(Boolean))];
+  barcodeCodes=unique;
+  const input=document.getElementById('med-barcode');
+  if(input)input.value=unique.join('\n');
+  renderBarcodeList();
+}
+
+function addBarcodeCode(raw){
+  const code=normalizeBarcode(raw);
+  if(!code)return false;
+  const before=barcodeCodes.length;
+  syncBarcodeInput([...barcodeCodes,code]);
+  return barcodeCodes.length>before;
+}
+
+function renderBarcodeList(){
+  const list=document.getElementById('barcode-list');
+  const count=document.getElementById('barcode-count');
+  if(count)count.textContent=barcodeCodes.length?`読み取り済み: ${barcodeCodes.length}件（複数QRはこのまま薬情報にまとめて保存されます）`:'';
+  if(!list)return;
+  list.innerHTML=barcodeCodes.map((code,i)=>`<div class="barcode-item">
+    <span>${i+1}. ${escapeHTML(code)}</span>
+    <button class="med-mini-btn" onclick="removeBarcodeCode(${i})">削除</button>
+  </div>`).join('');
+}
+
+function removeBarcodeCode(index){
+  syncBarcodeInput(barcodeCodes.filter((_,i)=>i!==index));
+}
+
+function clearBarcodeCodes(){
+  syncBarcodeInput([]);
+  setBarcodeMsg('');
+}
+
 function renderMedPage(){
   const start=document.getElementById('med-start');
   if(start&&!start.value)start.value=todayStr;
@@ -1621,7 +1669,7 @@ function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}=
   return `<div class="med-pill${checked?' checked':''}">
     <div>
       <div class="med-name">${escapeHTML(m.name||'名称未設定')}</div>
-      ${m.barcode?`<div class="med-note">コード: ${escapeHTML(m.barcode)}</div>`:''}
+      ${(m.barcodes?.length||m.barcode)?`<div class="med-note">コード: ${m.barcodes?.length?`${m.barcodes.length}件`:escapeHTML(m.barcode)}</div>`:''}
       <div class="med-note">タイミング: ${escapeHTML(doseLabel)}</div>
       ${note}
       <div class="med-period">${escapeHTML(period)}</div>
@@ -1632,7 +1680,9 @@ function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}=
 }
 
 async function addMedication(){
-  const barcode=normalizeBarcode(document.getElementById('med-barcode')?.value||'');
+  syncBarcodeInput(parseBarcodeInput());
+  const barcodes=[...barcodeCodes];
+  const barcode=barcodes[0]||'';
   const name=document.getElementById('med-name')?.value.trim();
   const category=document.getElementById('med-category')?.value||'other';
   const timeValue=document.getElementById('med-time')?.value||'am';
@@ -1646,7 +1696,7 @@ async function addMedication(){
   if(daysSupplyRaw && (!daysSupply || daysSupply<1)){if(msg)msg.textContent='処方日数は1以上で入力してください';return}
   const meds=getMeds();
   const editId=document.getElementById('med-edit-id')?.value||'';
-  const payload={name,barcode,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true};
+  const payload={name,barcode,barcodes,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true};
   if(editId){
     const target=meds.find(m=>String(m.id)===String(editId));
     if(target)Object.assign(target,payload);
@@ -1665,7 +1715,7 @@ function editMedication(id){
   if(!m)return;
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val??''};
   set('med-edit-id',m.id);
-  set('med-barcode',m.barcode||'');
+  syncBarcodeInput(m.barcodes?.length?m.barcodes:(m.barcode?[m.barcode]:[]));
   set('med-name',m.name||'');
   set('med-category',m.category||'other');
   set('med-time',medTimes(m).join(','));
@@ -1681,6 +1731,8 @@ function editMedication(id){
 
 function resetMedicationForm(){
   ['med-edit-id','med-barcode','med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  barcodeCodes=[];
+  renderBarcodeList();
   const start=document.getElementById('med-start');
   if(start)start.value=todayStr;
   const time=document.getElementById('med-time');
@@ -1694,9 +1746,12 @@ function resetMedicationForm(){
 }
 
 function findMedicationByBarcode(){
-  const code=normalizeBarcode(document.getElementById('med-barcode')?.value||'');
-  if(!code){setBarcodeMsg('バーコードを入力してください','danger');return}
-  const hit=getMeds().find(m=>normalizeBarcode(m.barcode)===code);
+  syncBarcodeInput(parseBarcodeInput());
+  if(!barcodeCodes.length){setBarcodeMsg('バーコードを入力してください','danger');return}
+  const hit=getMeds().find(m=>{
+    const stored=m.barcodes?.length?m.barcodes:(m.barcode?[m.barcode]:[]);
+    return stored.some(code=>barcodeCodes.includes(normalizeBarcode(code)));
+  });
   if(hit){
     editMedication(hit.id);
     setBarcodeMsg('登録済みの薬を表示しました','ok');
@@ -1725,17 +1780,15 @@ async function startBarcodeScan(){
     video.srcObject=barcodeStream;
     video.style.display='block';
     await video.play();
-    setBarcodeMsg('読み取り中です。バーコードをカメラに映してください。');
+    setBarcodeMsg('読み取り中です。複数QRを順番にカメラへ映してください。すべて拾えたら停止してください。');
     barcodeScanTimer=setInterval(async ()=>{
       try{
         const codes=await detector.detect(video);
         if(codes&&codes.length){
-          const raw=normalizeBarcode(codes[0].rawValue);
-          if(raw){
-            document.getElementById('med-barcode').value=raw;
-            setBarcodeMsg('読み取りました: '+raw,'ok');
-            stopBarcodeScan();
-            findMedicationByBarcode();
+          let added=0;
+          codes.forEach(item=>{if(addBarcodeCode(item.rawValue))added++});
+          if(added){
+            setBarcodeMsg(`読み取りました: 合計${barcodeCodes.length}件。すべて読み取ったら「停止」を押してください。`,'ok');
           }
         }
       }catch{}
