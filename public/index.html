@@ -540,6 +540,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         </div>
         <div class="form-group"><label>メモ</label><input type="text" id="med-note" placeholder="例: 食後、寝る前など"></div>
         <div class="form-group"><label>処方開始日</label><input type="date" id="med-start"></div>
+        <div class="form-group"><label>服用終了日</label><input type="date" id="med-end"></div>
         <div class="form-group"><label>処方日数（日分）</label><input type="number" id="med-days" min="1" placeholder="例: 30"></div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -1665,7 +1666,7 @@ async function importMedicationCsv(event){
       for(const med of meds){
         if(addMedicationFromImport(med)){
           imported++;
-          addedNames.push(`${med.startDate||''} ${med.name}`);
+          addedNames.push(`${getMedPeriodText(med)} / ${medTimeLabel(med)} / ${med.name}`);
         }else{
           skipped++;
         }
@@ -1724,10 +1725,13 @@ function extractMedsFromCsv(rows,fileName=''){
     let name=pick([/薬品.*名/,/医薬品.*名/,/薬剤.*名/,/^薬名$/, /販売名/,/名称/]);
     if(!name)name=guessMedicineName(row);
     if(!name)return;
-    const startDate=normalizeCsvDate(pick([/調剤日/,/処方日/,/服用開始日/,/開始日/,/交付日/,/年月日/])||dateFromFile);
-    const dayText=pick([/処方.*日数/,/投与.*日数/,/服用.*日数/,/^日数$/, /日分/,/調剤数量/])||joined;
-    const daysSupply=guessDaysSupply(dayText);
-    const usage=pick([/用法/,/服用方法/,/服用時点/,/タイミング/])||joined;
+    const periodText=pick([/服用.*期間/,/処方.*期間/,/投与.*期間/,/期間/])||joined;
+    const period=parseMedicationPeriod(periodText);
+    const startDate=period.start || normalizeCsvDate(pick([/調剤日/,/処方日/,/服用開始日/,/開始日/,/交付日/,/年月日/])||dateFromFile);
+    const endDate=period.end || normalizeCsvDate(pick([/服用終了日/,/終了日/,/終期/,/服用.*至/]));
+    const dayText=pick([/処方.*日数/,/投与.*日数/,/服用.*日数/,/^日数$/, /日分/,/調剤数量/])||periodText||joined;
+    const daysSupply=guessDaysSupply(dayText) || (startDate&&endDate?daysBetweenInclusive(startDate,endDate):null);
+    const usage=pick([/服用時間/,/服用時点/,/用法/,/服用方法/,/タイミング/,/食後|食前|食間/])||joined;
     const times=parseMedicationTimesFromText(usage);
     const dose=pick([/用量/,/1回量/,/数量/,/単位/,/服用量/]);
     const note=[usage,dose].filter(Boolean).join(' / ').slice(0,120);
@@ -1739,6 +1743,7 @@ function extractMedsFromCsv(rows,fileName=''){
       times,
       note,
       startDate,
+      endDate,
       daysSupply,
       active:true,
       source:'csv'
@@ -1767,6 +1772,16 @@ function normalizeCsvDate(s){
   m=t.match(/令和\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
   if(m){const y=2018+Number(m[1]);return `${y}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`}
   return '';
+}
+
+function parseMedicationPeriod(text){
+  const t=String(text||'');
+  const dates=[];
+  const western=t.matchAll(/(20\d{2})[\/年\-.](\d{1,2})[\/月\-.](\d{1,2})/g);
+  for(const m of western)dates.push(`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`);
+  const reiwa=t.matchAll(/令和\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/g);
+  for(const m of reiwa){const y=2018+Number(m[1]);dates.push(`${y}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`)}
+  return {start:dates[0]||'',end:dates[1]||''};
 }
 
 function guessDaysSupply(text){
@@ -1868,14 +1883,15 @@ async function addMedication(){
   const times=timeValue.split(',').filter(Boolean);
   const note=document.getElementById('med-note')?.value.trim()||'';
   const startDate=document.getElementById('med-start')?.value||'';
+  const endDate=document.getElementById('med-end')?.value||'';
   const daysSupplyRaw=document.getElementById('med-days')?.value||'';
-  const daysSupply=daysSupplyRaw?parseInt(daysSupplyRaw,10):null;
+  const daysSupply=daysSupplyRaw?parseInt(daysSupplyRaw,10):(startDate&&endDate?daysBetweenInclusive(startDate,endDate):null);
   const msg=document.getElementById('med-save-msg');
   if(!name){if(msg)msg.textContent='薬名を入力してください';return}
   if(daysSupplyRaw && (!daysSupply || daysSupply<1)){if(msg)msg.textContent='処方日数は1以上で入力してください';return}
   const meds=getMeds();
   const editId=document.getElementById('med-edit-id')?.value||'';
-  const payload={name,barcode,barcodes,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true};
+  const payload={name,barcode,barcodes,category,time:times[0]||'am',times,note,startDate,endDate,daysSupply,active:true};
   if(editId){
     const target=meds.find(m=>String(m.id)===String(editId));
     if(target)Object.assign(target,payload);
@@ -1900,6 +1916,7 @@ function editMedication(id){
   set('med-time',medTimes(m).join(','));
   set('med-note',m.note||'');
   set('med-start',m.startDate||todayStr);
+  set('med-end',m.endDate||getMedEndDate(m)||'');
   set('med-days',m.daysSupply||'');
   const btn=document.getElementById('med-submit-btn');
   const cancel=document.getElementById('med-cancel-btn');
@@ -1909,7 +1926,7 @@ function editMedication(id){
 }
 
 function resetMedicationForm(){
-  ['med-edit-id','med-barcode','med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['med-edit-id','med-barcode','med-name','med-note','med-end','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   barcodeCodes=[];
   renderBarcodeList();
   const start=document.getElementById('med-start');
@@ -2156,6 +2173,7 @@ async function deleteMedication(id){
 }
 
 function getMedEndDate(m){
+  if(m.endDate)return m.endDate;
   if(!m.startDate||!m.daysSupply)return '';
   return addDaysStr(m.startDate,Number(m.daysSupply)-1);
 }
@@ -2167,15 +2185,18 @@ function isMedActiveOn(m,dateStr){
 }
 
 function getMedPeriodText(m){
-  if(!m.startDate||!m.daysSupply)return '期間指定なし';
   const end=getMedEndDate(m);
-  return `${fmtShort(m.startDate)}〜${fmtShort(end)}（${m.daysSupply}日分）`;
+  if(!m.startDate&&!end)return '期間指定なし';
+  const days=m.daysSupply || (m.startDate&&end?daysBetweenInclusive(m.startDate,end):null);
+  if(m.startDate&&end)return `${fmtShort(m.startDate)}〜${fmtShort(end)}${days?`（${days}日分）`:''}`;
+  if(m.startDate)return `${fmtShort(m.startDate)}〜`;
+  return `〜${fmtShort(end)}`;
 }
 
 function renderMedCalendar(){
   const el=document.getElementById('med-calendar-body');
   if(!el)return;
-  const meds=getMeds().filter(m=>m.active!==false&&m.startDate&&m.daysSupply);
+  const meds=getMeds().filter(m=>m.active!==false&&m.startDate&&getMedEndDate(m));
   if(!meds.length){
     el.innerHTML='<div class="quick-note">処方開始日と日数が入った薬はまだありません。</div>';
     return;
