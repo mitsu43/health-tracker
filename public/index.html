@@ -492,7 +492,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
           <textarea id="med-barcode" rows="3" placeholder="複数QRは1行に1コードで保存します。カメラで読み取り、または手入力してください。"></textarea>
         </div>
         <div class="barcode-actions">
-          <button class="btn btn-ghost" onclick="startBarcodeScan()">複数QRを読み取る</button>
+          <button class="btn btn-ghost" onclick="startBarcodeScan()">QRを1枚読み取る</button>
           <button class="btn btn-ghost" onclick="stopBarcodeScan()">停止</button>
           <button class="btn btn-ghost" onclick="findMedicationByBarcode()">登録済み薬を検索</button>
           <button class="btn btn-ghost" onclick="clearBarcodeCodes()">読み取り結果をクリア</button>
@@ -1774,7 +1774,7 @@ async function startBarcodeScan(){
     return;
   }
   try{
-    stopBarcodeScan();
+    stopBarcodeScan(false);
     const formats=await BarcodeDetector.getSupportedFormats?.() || [];
     const preferred=['ean_13','ean_8','code_128','code_39','itf','qr_code','data_matrix'].filter(f=>!formats.length||formats.includes(f));
     const detector=new BarcodeDetector({formats:preferred});
@@ -1783,10 +1783,10 @@ async function startBarcodeScan(){
     video.style.display='block';
     await video.play();
     barcodeScanning=true;
-    setBarcodeMsg('読み取り中です。1つ読めたら一瞬止まります。次のQRへゆっくり動かしてください。');
+    setBarcodeMsg('読み取り中です。QRを1枚カメラに映してください。読めたら自動で停止します。');
     runBarcodeScanLoop(detector,video,300);
   }catch(e){
-    stopBarcodeScan();
+    stopBarcodeScan(false);
     setBarcodeMsg('カメラを開始できませんでした: '+(e.message||e),'danger');
   }
 }
@@ -1804,8 +1804,15 @@ function runBarcodeScanLoop(detector,video,delay=700){
         let added=0;
         codes.forEach(item=>{if(addBarcodeCode(item.rawValue))added++});
         if(added){
-          nextDelay=1400;
-          setBarcodeMsg(`読み取りました: 合計${barcodeCodes.length}件。次のQRへ動かしてください。終わったら「停止」。`,'ok');
+          barcodeDetecting=false;
+          stopBarcodeScan(false);
+          setBarcodeMsg(`読み取り完了: 合計${barcodeCodes.length}件。次のQRはもう一度「QRを1枚読み取る」を押してください。`,'ok');
+          return;
+        }else{
+          barcodeDetecting=false;
+          stopBarcodeScan(false);
+          setBarcodeMsg(`読み取り完了: すでに登録済みのQRでした（合計${barcodeCodes.length}件）。`,'ok');
+          return;
         }
       }
     }catch(e){
@@ -1817,7 +1824,7 @@ function runBarcodeScanLoop(detector,video,delay=700){
   },delay);
 }
 
-function stopBarcodeScan(){
+function stopBarcodeScan(showComplete=true){
   barcodeScanning=false;
   barcodeDetecting=false;
   if(barcodeScanTimer){
@@ -1833,6 +1840,9 @@ function stopBarcodeScan(){
     video.pause();
     video.srcObject=null;
     video.style.display='none';
+  }
+  if(showComplete){
+    setBarcodeMsg(barcodeCodes.length?`読み取り完了: 合計${barcodeCodes.length}件です。`:'読み取りを停止しました。','ok');
   }
 }
 
