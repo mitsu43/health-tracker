@@ -483,6 +483,16 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       <div id="med-schedule-top"></div>
     </div>
     <div class="card">
+      <div class="card-title">お薬手帳CSVから取り込み</div>
+      <div class="quick-note" style="margin-bottom:10px">電子お薬手帳から出力したCSVを複数選択できます。薬名、服用タイミング、処方日数、調剤日をできる範囲で読み取ります。</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="document.getElementById('med-csv-file').click()">CSVを選んで取り込む</button>
+        <input type="file" id="med-csv-file" accept=".csv,text/csv" multiple style="display:none" onchange="importMedicationCsv(event)">
+        <span id="med-csv-msg" style="font-size:12px;color:var(--text2)"></span>
+      </div>
+      <div id="med-csv-preview" class="quick-note" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
       <div class="card-title">薬を登録</div>
       <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
         薬名、目的、飲むタイミングを登録します。服薬の変更・中止判断は必ず医師や薬剤師の指示に従ってください。
@@ -494,7 +504,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         </div>
         <div class="barcode-actions">
           <button class="btn btn-primary" onclick="document.getElementById('barcode-image-file').click()">写真からまとめて読み取る</button>
-          <input type="file" id="barcode-image-file" accept="image/*,.heic,.heif" style="display:none" onchange="readBarcodeImage(event)">
+          <input type="file" id="barcode-image-file" accept="image/*" style="display:none" onchange="readBarcodeImage(event)">
           <button class="btn btn-ghost" onclick="startBarcodeScan()">QRを1枚読み取る</button>
           <button class="btn btn-ghost" onclick="stopBarcodeScan()">停止</button>
           <button class="btn btn-ghost" onclick="findMedicationByBarcode()">登録済み薬を検索</button>
@@ -1638,6 +1648,170 @@ function renderTodayMeds(){
   renderMedMatrix('today-med-matrix',{editable:false,checkable:true});
 }
 
+async function importMedicationCsv(event){
+  const files=[...(event.target.files||[])];
+  event.target.value='';
+  const msg=document.getElementById('med-csv-msg');
+  const preview=document.getElementById('med-csv-preview');
+  if(!files.length)return;
+  if(msg)msg.textContent='CSVを読み込んでいます...';
+  let imported=0, skipped=0;
+  const addedNames=[];
+  try{
+    for(const file of files){
+      const text=await readCsvFileText(file);
+      const rows=parseCsvText(text).filter(row=>row.some(cell=>String(cell||'').trim()));
+      const meds=extractMedsFromCsv(rows,file.name);
+      for(const med of meds){
+        if(addMedicationFromImport(med)){
+          imported++;
+          addedNames.push(`${med.startDate||''} ${med.name}`);
+        }else{
+          skipped++;
+        }
+      }
+    }
+    if(imported>0)await persistGoals();
+    renderMedPage();
+    renderTodayMeds();
+    if(msg)msg.textContent=`取り込み完了: ${imported}件追加 / ${skipped}件スキップ`;
+    if(preview)preview.innerHTML=addedNames.slice(0,12).map(s=>`<div>${escapeHTML(s)}</div>`).join('')+(addedNames.length>12?`<div>ほか${addedNames.length-12}件</div>`:'');
+  }catch(e){
+    if(msg)msg.textContent='CSV取り込みでエラー: '+(e.message||e);
+  }
+}
+
+async function readCsvFileText(file){
+  const buf=await file.arrayBuffer();
+  const utf8=new TextDecoder('utf-8').decode(buf);
+  const bad=(utf8.match(/\uFFFD/g)||[]).length;
+  if(bad<3)return utf8;
+  try{return new TextDecoder('shift-jis').decode(buf)}catch{return utf8}
+}
+
+function parseCsvText(text){
+  const rows=[];let row=[],cell='',quote=false;
+  for(let i=0;i<String(text).length;i++){
+    const ch=text[i], next=text[i+1];
+    if(ch==='"'){
+      if(quote&&next==='"'){cell+='"';i++}
+      else quote=!quote;
+    }else if(ch===','&&!quote){
+      row.push(cell);cell='';
+    }else if((ch==='\n'||ch==='\r')&&!quote){
+      if(ch==='\r'&&next==='\n')i++;
+      row.push(cell);rows.push(row);row=[];cell='';
+    }else{
+      cell+=ch;
+    }
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row)}
+  return rows.map(r=>r.map(c=>String(c||'').trim()));
+}
+
+function extractMedsFromCsv(rows,fileName=''){
+  if(!rows.length)return [];
+  const headerIndex=rows.findIndex(r=>r.some(c=>/薬|医薬|用法|日数|調剤|処方|服用/.test(c)));
+  const headers=headerIndex>=0?rows[headerIndex]:[];
+  const dataRows=headerIndex>=0?rows.slice(headerIndex+1):rows;
+  const dateFromFile=(fileName.match(/20\d{6}/)?.[0]||'').replace(/(\d{4})(\d{2})(\d{2})/,'$1-$2-$3');
+  const meds=[];
+  dataRows.forEach(row=>{
+    const obj={};
+    headers.forEach((h,i)=>obj[h]=row[i]||'');
+    const joined=row.join(' ');
+    const pick=(patterns)=>pickCsvValue(obj,row,headers,patterns);
+    let name=pick([/薬品.*名/,/医薬品.*名/,/薬剤.*名/,/^薬名$/, /販売名/,/名称/]);
+    if(!name)name=guessMedicineName(row);
+    if(!name)return;
+    const startDate=normalizeCsvDate(pick([/調剤日/,/処方日/,/服用開始日/,/開始日/,/交付日/,/年月日/])||dateFromFile);
+    const dayText=pick([/処方.*日数/,/投与.*日数/,/服用.*日数/,/^日数$/, /日分/,/調剤数量/])||joined;
+    const daysSupply=guessDaysSupply(dayText);
+    const usage=pick([/用法/,/服用方法/,/服用時点/,/タイミング/])||joined;
+    const times=parseMedicationTimesFromText(usage);
+    const dose=pick([/用量/,/1回量/,/数量/,/単位/,/服用量/]);
+    const note=[usage,dose].filter(Boolean).join(' / ').slice(0,120);
+    meds.push({
+      id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      name:name.replace(/\s+/g,' ').trim(),
+      category:classifyMedicationCategory(name),
+      time:times[0]||'am',
+      times,
+      note,
+      startDate,
+      daysSupply,
+      active:true,
+      source:'csv'
+    });
+  });
+  return dedupeImportedMeds(meds);
+}
+
+function pickCsvValue(obj,row,headers,patterns){
+  for(const [k,v] of Object.entries(obj)){
+    if(patterns.some(re=>re.test(String(k))))return String(v||'').trim();
+  }
+  const idx=headers.findIndex(h=>patterns.some(re=>re.test(String(h))));
+  return idx>=0?String(row[idx]||'').trim():'';
+}
+
+function guessMedicineName(row){
+  return row.find(c=>/(錠|OD|カプセル|Cap|mg|μg|mcg|g|mL|散|細粒|顆粒|シート|テープ)/i.test(c)&&!/(用法|日数|調剤|処方|服用|朝|昼|夕|寝る|食後)/.test(c))||'';
+}
+
+function normalizeCsvDate(s){
+  const t=String(s||'').trim();
+  if(!t)return '';
+  let m=t.match(/(20\d{2})[\/年\-.]?(\d{1,2})[\/月\-.]?(\d{1,2})/);
+  if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m=t.match(/令和\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
+  if(m){const y=2018+Number(m[1]);return `${y}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`}
+  return '';
+}
+
+function guessDaysSupply(text){
+  const m=String(text||'').match(/(\d{1,3})\s*日\s*(分|間)?/);
+  return m?Number(m[1]):null;
+}
+
+function parseMedicationTimesFromText(text){
+  const t=String(text||'');
+  const times=[];
+  if(/朝|起床|朝食/.test(t))times.push('am');
+  if(/昼|昼食/.test(t))times.push('noon');
+  if(/夕|晩|夜|夕食|寝る|就寝/.test(t))times.push('night');
+  if(!times.length&&/1日\s*3\s*回|毎食/.test(t))return ['am','noon','night'];
+  if(!times.length&&/1日\s*2\s*回/.test(t))return ['am','night'];
+  if(!times.length)return ['am'];
+  return [...new Set(times)];
+}
+
+function classifyMedicationCategory(name){
+  const n=String(name||'').toLowerCase();
+  if(/スタチン|ロスバ|アトルバ|ピタバ|プラバ|エゼチミブ|ゼチーア|レパーサ/.test(n))return 'ldl';
+  if(/フェブキソ|フェブリク|アロプリ|ザイロリック|ユリス|ドチヌラド|ベンズブロマロン|ユリノーム/.test(n))return 'ua';
+  if(/メトホルミン|メトグルコ|ジャディアンス|フォシーガ|ジャヌビア|グラクティブ|トラゼンタ|リベルサス|オゼンピック|インスリン|グリメピリド/.test(n))return 'hba1c';
+  return 'other';
+}
+
+function dedupeImportedMeds(meds){
+  const seen=new Set();
+  return meds.filter(m=>{
+    const key=[m.name,m.startDate,m.daysSupply,medTimes(m).join(',')].join('|');
+    if(seen.has(key))return false;
+    seen.add(key);return true;
+  });
+}
+
+function addMedicationFromImport(med){
+  const meds=getMeds();
+  const key=[med.name,med.startDate,med.daysSupply,medTimes(med).join(',')].join('|');
+  const exists=meds.some(m=>[m.name,m.startDate,m.daysSupply,medTimes(m).join(',')].join('|')===key);
+  if(exists)return false;
+  meds.push(med);
+  return true;
+}
+
 function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
   const el=document.getElementById(targetId);
   if(!el)return;
@@ -1774,110 +1948,53 @@ async function readBarcodeImage(event){
     setBarcodeMsg('写真からQRを読み取っています...');
     const image=await loadBarcodeImage(file);
     const rawCodes=await detectCodesFromImage(image);
-    // canvasはsrcプロパティを持たないのでrevokeは条件付きで
-    if(image.src) URL.revokeObjectURL(image.src);
+    URL.revokeObjectURL(image.src);
     if(!rawCodes.length){
-      setBarcodeMsg('QRを検出できませんでした。\n①薬袋を白い台に置いて真上から撮影\n②QRを画面の6〜7割の大きさで撮影\n③照明の反射がない場所で撮影\nしてから再試行してください。','danger');
+      setBarcodeMsg('QRを検出できませんでした。紙を横向きのまま全体撮影、またはQRを1つずつ大きく撮ってください。','danger');
       return;
     }
     let added=0;
     rawCodes.forEach(code=>{if(addBarcodeCode(code))added++});
     if(added){
-      setBarcodeMsg(`✅ 読み取り完了: ${added}件追加、合計${barcodeCodes.length}件です。`,'ok');
+      setBarcodeMsg(`読み取り完了: ${added}件追加、合計${barcodeCodes.length}件です。`,'ok');
     }else{
       setBarcodeMsg(`読み取り完了: すべて登録済みでした（合計${barcodeCodes.length}件）。`,'ok');
     }
   }catch(e){
-    setBarcodeMsg('❌ '+( e.message||'写真から読み取れませんでした'),'danger');
+    setBarcodeMsg('写真から読み取れませんでした: '+(e.message||e),'danger');
   }
 }
 
-async function loadBarcodeImage(file){
-  // HEIC/HEIF (iPhoneデフォルト形式) はcreateImageBitmapで処理する
-  // createImageBitmapはiOS Safari 15+でHEICに対応している
-  try{
-    const bitmap=await createImageBitmap(file);
-    // ImageBitmapをcanvasに描いてHTMLImageElementとして返す
-    const canvas=document.createElement('canvas');
-    canvas.width=bitmap.width;
-    canvas.height=bitmap.height;
-    const ctx=canvas.getContext('2d',{willReadFrequently:true});
-    ctx.drawImage(bitmap,0,0);
-    bitmap.close();
-    // canvas自体をsourceとして返す（drawImage対応）
-    return canvas;
-  }catch(bitmapErr){
-    // createImageBitmapが失敗した場合（古いブラウザ等）はimgタグで試みる
-    return new Promise((resolve,reject)=>{
-      const img=new Image();
-      img.onload=()=>resolve(img);
-      img.onerror=()=>{
-        const ext=(file.name||'').split('.').pop().toUpperCase();
-        if(ext==='HEIC'||ext==='HEIF'){
-          reject(new Error('HEIC形式の変換に失敗しました。写真アプリで「JPEG互換」に設定するか、カメラロールからJPEGで保存し直してください。'));
-        }else{
-          reject(new Error('画像を読み込めませんでした（'+ext+'形式）'));
-        }
-      };
-      img.src=URL.createObjectURL(file);
-    });
-  }
+function loadBarcodeImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error('画像を読み込めませんでした'));
+    img.src=URL.createObjectURL(file);
+  });
 }
 
 async function detectCodesFromImage(source){
   const found=[];
-
-  // ① BarcodeDetector API (Android Chrome / macOS Safari 17+)
   if('BarcodeDetector' in window){
     try{
       const formats=await BarcodeDetector.getSupportedFormats?.() || [];
       const preferred=['qr_code','data_matrix','ean_13','ean_8','code_128','code_39','itf'].filter(f=>!formats.length||formats.includes(f));
       const detector=new BarcodeDetector({formats:preferred});
-      // canvasはImageBitmapSourceとして渡せる
       const detected=await detector.detect(source);
       detected.forEach(item=>found.push(item.rawValue));
-    }catch(e){
-      console.warn('BarcodeDetector failed:',e);
-    }
+    }catch{}
   }
-
-  // ② jsQR (QRコード専用、iOS Safari含む全環境で動作)
   if(window.jsQR){
-    // オリジナル解像度でスキャン
     scanImageWithJsQR(source).forEach(code=>found.push(code));
-    // コントラスト強調版でも試みる（薄い・反射した薬袋のQRに有効）
-    const enhanced=enhanceContrast(source);
-    if(enhanced){
-      scanImageWithJsQR(enhanced).forEach(code=>found.push(code));
-    }
   }
-
   return [...new Set(found.map(normalizeBarcode).filter(Boolean))];
-}
-
-// コントラスト強調 + 二値化（薬袋の照り返しや薄いQRに対応）
-function enhanceContrast(source){
-  try{
-    const {width,height}=getImageSize(source);
-    if(!width||!height)return null;
-    const scale=Math.min(1,1600/Math.max(width,height));
-    const w=Math.max(1,Math.round(width*scale));
-    const h=Math.max(1,Math.round(height*scale));
-    const canvas=document.createElement('canvas');
-    canvas.width=w; canvas.height=h;
-    const ctx=canvas.getContext('2d',{willReadFrequently:true});
-    // コントラスト強調フィルター
-    ctx.filter='contrast(1.8) brightness(1.1)';
-    ctx.drawImage(source,0,0,w,h);
-    ctx.filter='none';
-    return canvas;
-  }catch{return null}
 }
 
 function getImageSize(source){
   return {
-    width: source.naturalWidth||source.videoWidth||source.width||0,
-    height:source.naturalHeight||source.videoHeight||source.height||0
+    width:source.naturalWidth||source.videoWidth||source.width,
+    height:source.naturalHeight||source.videoHeight||source.height
   };
 }
 
