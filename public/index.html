@@ -494,7 +494,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         </div>
         <div class="barcode-actions">
           <button class="btn btn-primary" onclick="document.getElementById('barcode-image-file').click()">写真からまとめて読み取る</button>
-          <input type="file" id="barcode-image-file" accept="image/*,.heic,.heif" style="display:none" onchange="readBarcodeImage(event)">
+          <input type="file" id="barcode-image-file" accept="image/*" style="display:none" onchange="readBarcodeImage(event)">
           <button class="btn btn-ghost" onclick="startBarcodeScan()">QRを1枚読み取る</button>
           <button class="btn btn-ghost" onclick="stopBarcodeScan()">停止</button>
           <button class="btn btn-ghost" onclick="findMedicationByBarcode()">登録済み薬を検索</button>
@@ -1765,185 +1765,6 @@ function findMedicationByBarcode(){
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// JAHIS 電子版お薬手帳 QRパーサー Ver.1.0〜2.5 対応
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * QRコードの生テキスト（複数可）をJAHIS CSVとして解析し、
- * 薬品情報の配列を返す。
- *
- * JAHISフォーマット主要レコード:
- *   No.1   バージョン情報  JAHISTC01 / JAHISTC02
- *   No.5   調剤年月日
- *   No.11  調剤－医療機関
- *   No.201 薬品レコード    RP番号,薬品コード,薬品名,用量,単位,剤形,等
- *   No.281 薬品補足        RP番号,補足文
- *   No.301 用法レコード    RP番号,用法コード,用法名,1回量,単位,1日回数,日数,等
- *   No.311 用法補足        RP番号,補足文
- *   No.391 服用注意        RP番号,注意文
- */
-function parseJahisQR(rawTexts){
-  // 複数QRのテキストを結合（改行区切り、重複行除去）
-  const lines = rawTexts
-    .flatMap(t => t.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n'))
-    .map(l => l.trim())
-    .filter(Boolean);
-
-  if(!lines.length) return null;
-
-  // バージョン確認（JAHISTC01 or JAHISTC02 or 先頭行が1,で始まる）
-  const firstLine = lines[0];
-  const isJahis = /^JAHISTC0[12]$/i.test(firstLine) || /^1,/.test(firstLine);
-  if(!isJahis) return null; // JAHIS形式でない
-
-  // CSV行をパース（引用符考慮）
-  function parseCsvLine(line){
-    const result=[];
-    let cur='', inQ=false;
-    for(let i=0;i<line.length;i++){
-      const c=line[i];
-      if(c==='"'){ inQ=!inQ; continue; }
-      if(c===','&&!inQ){ result.push(cur.trim()); cur=''; continue; }
-      cur+=c;
-    }
-    result.push(cur.trim());
-    return result;
-  }
-
-  // 全レコードをパース
-  const records = {};  // recNo → [fields]の配列
-  let dispensingDate = '';
-  let pharmacyName   = '';
-
-  for(const line of lines){
-    if(!line || /^JAHISTC/i.test(line)) continue;
-    const fields = parseCsvLine(line);
-    const recNo  = parseInt(fields[0], 10);
-    if(isNaN(recNo)) continue;
-    if(!records[recNo]) records[recNo] = [];
-    records[recNo].push(fields);
-
-    // No.5 調剤年月日: [5, YYYYMMDD]
-    if(recNo===5 && fields[1]){
-      const d=fields[1].replace(/\D/g,'');
-      if(d.length===8) dispensingDate=`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
-    }
-    // No.11 薬局名: [11, RP, 保険医療機関コード, 医療機関名, ...]
-    if(recNo===11 && fields[3]) pharmacyName=fields[3];
-  }
-
-  // 用法レコード(301)をRPごとに整理
-  // No.301: [301, RP番号, 用法コード, 用法テキスト, 1回量, 単位, 1日回数, 調剤数量, 数量単位, ...]
-  const hoToTimes = { '1':'am', '2':'pm', '3':'eve', '4':'bed',
-                      '朝':'am','昼':'pm','夕':'eve','夜':'eve','就寝前':'bed' };
-  const usageByRP = {};
-  for(const f of (records[301]||[])){
-    const rp   = f[1];
-    const code = f[2]||'';  // 用法コード
-    const text = f[3]||'';  // 用法テキスト（例: "1日3回 毎食後"）
-    const dose1 = f[4]||''; // 1回量
-    const unit1 = f[5]||''; // 1回単位
-    const timesPerDay = parseInt(f[6],10)||0; // 1日回数
-    const days  = parseInt(f[7],10)||null;    // 日数 or 回数
-
-    // 朝昼夕をコードまたはテキストから推定
-    const timesArr=[];
-    if(/朝|起床|朝食/.test(text)||code==='1') timesArr.push('am');
-    if(/昼|昼食/.test(text)||code==='2') timesArr.push('pm');
-    if(/夕|夕食|夜/.test(text)||code==='3') timesArr.push('eve');
-    if(/就寝|寝る前/.test(text)||code==='4') timesArr.push('bed');
-    // 回数から推定（朝昼夕 = 3回、朝夕 = 2回等）
-    if(!timesArr.length){
-      if(timesPerDay>=3) timesArr.push('am','pm','eve');
-      else if(timesPerDay===2) timesArr.push('am','eve');
-      else if(timesPerDay===1) timesArr.push('am');
-    }
-    if(!timesArr.length) timesArr.push('am');
-
-    usageByRP[rp] = {
-      times: timesArr,
-      timesPerDay,
-      days,
-      dose1,
-      unit1,
-      usageText: text,
-      code
-    };
-  }
-
-  // 用法補足(311)もRP整理
-  const usageSuppByRP = {};
-  for(const f of (records[311]||[])){
-    const rp=f[1]; const txt=f[2]||'';
-    if(!usageSuppByRP[rp]) usageSuppByRP[rp]='';
-    usageSuppByRP[rp]+=(usageSuppByRP[rp]?'、':'')+txt;
-  }
-
-  // 服用注意(391)もRP整理
-  const cautionByRP = {};
-  for(const f of (records[391]||[])){
-    const rp=f[1]; const txt=f[2]||'';
-    if(!cautionByRP[rp]) cautionByRP[rp]='';
-    cautionByRP[rp]+=(cautionByRP[rp]?'、':'')+txt;
-  }
-
-  // 薬品補足(281)をRP整理
-  const drugSuppByRP = {};
-  for(const f of (records[281]||[])){
-    const rp=f[1]; const txt=f[2]||'';
-    if(!drugSuppByRP[rp]) drugSuppByRP[rp]='';
-    drugSuppByRP[rp]+=(drugSuppByRP[rp]?'、':'')+txt;
-  }
-
-  // 薬品レコード(201)を処理
-  // No.201: [201, RP番号, 薬品コード, 薬品名, 1回用量, 単位, 剤形コード, ...]
-  const drugs = [];
-  for(const f of (records[201]||[])){
-    const rp       = f[1];
-    const drugCode = f[2]||'';
-    const drugName = f[3]||'';
-    const dose     = f[4]||'';
-    const unit     = f[5]||'';
-    const formCode = f[6]||'';
-
-    if(!drugName) continue;
-
-    const usage = usageByRP[rp] || { times:['am'], days:null, dose1:'', unit1:'', usageText:'' };
-
-    // メモ組み立て
-    const parts=[];
-    if(dose && unit) parts.push(`${dose}${unit}/回`);
-    if(usage.usageText) parts.push(usage.usageText);
-    const supp=[drugSuppByRP[rp],usageSuppByRP[rp],cautionByRP[rp]].filter(Boolean);
-    if(supp.length) parts.push(supp.join(' '));
-    const note=parts.join(' / ');
-
-    drugs.push({
-      name:      drugName,
-      times:     usage.times,
-      days:      usage.days,
-      note:      note,
-      dispensingDate,
-      pharmacyName,
-      drugCode,
-    });
-  }
-
-  return drugs.length ? { drugs, dispensingDate, pharmacyName } : null;
-}
-
-// ─── カテゴリ自動推定（薬品名から） ───────────────────────
-function guessCategoryFromName(name){
-  const n=name.toLowerCase();
-  if(/スタチン|ロスバ|アトルバ|ピタ|フルバ|プラバ|シンバ|コレステロール|エゼチ/.test(n)) return 'ldl';
-  if(/ウリア|フェブ|アロプリ|ベンズブロ|トピロキ/.test(n)) return 'ua';
-  if(/グリコ|メトホ|インスリン|グルコ|シタグリ|エンパグリ|ダパグリ|トホグリ|ピオグリ|ビグア|αGI|ボグリ|アカルボ|ミグリ/.test(n)) return 'hba1c';
-  if(/アムロジ|ニフェジ|バルサルタン|エナラ|テルミサル|カンデ|オルメ|ロサルタン|アジルサル|イルベ|カルベジ|ビソプロ|メトプロ|アテノ|利尿|フロセ|スピロノ/.test(n)) return 'bp';
-  return 'other';
-}
-
-// ─── JAHIS QRから読み取り→フォームに自動入力 ────────────────
 async function readBarcodeImage(event){
   const file=event.target.files?.[0];
   event.target.value='';
@@ -1951,169 +1772,36 @@ async function readBarcodeImage(event){
   try{
     stopBarcodeScan(false);
     setBarcodeMsg('写真からQRを読み取っています...');
-
-    const image = await loadBarcodeImageSafe(file);
-    const rawCodes = await detectCodesFromImage(image);
-    if(image.src) URL.revokeObjectURL(image.src);
-
+    const image=await loadBarcodeImage(file);
+    const rawCodes=await detectCodesFromImage(image);
+    URL.revokeObjectURL(image.src);
     if(!rawCodes.length){
-      setBarcodeMsg('❌ QRを検出できませんでした。\n①明細書を白い台の上に置き真上から撮影\n②QRが画面の60〜70%を占める大きさで撮影\n③照明の反射がない場所で撮影してください。','danger');
+      setBarcodeMsg('QRを検出できませんでした。紙を横向きのまま全体撮影、またはQRを1つずつ大きく撮ってください。','danger');
       return;
     }
-
-    // まずJAHISパースを試みる
-    const parsed = parseJahisQR(rawCodes);
-
-    if(parsed && parsed.drugs.length){
-      // ── JAHIS形式を解析できた場合 → フォームに自動入力 ──
-      showJahisParsedResult(parsed);
-    } else {
-      // ── 非JAHIS QR（独自形式・URL等）→ 従来通りコード保存 ──
-      let added=0;
-      rawCodes.forEach(code=>{if(addBarcodeCode(code))added++});
-      if(added){
-        setBarcodeMsg(`QRを${added}件読み取りました。薬名を手入力して「薬を追加」してください。`,'ok');
-      } else {
-        setBarcodeMsg(`読み取り完了: すべて登録済みでした（合計${barcodeCodes.length}件）。`,'ok');
-      }
+    let added=0;
+    rawCodes.forEach(code=>{if(addBarcodeCode(code))added++});
+    if(added){
+      setBarcodeMsg(`読み取り完了: ${added}件追加、合計${barcodeCodes.length}件です。`,'ok');
+    }else{
+      setBarcodeMsg(`読み取り完了: すべて登録済みでした（合計${barcodeCodes.length}件）。`,'ok');
     }
   }catch(e){
-    const ext=(file.name||'').split('.').pop().toUpperCase();
-    if(ext==='HEIC'||ext==='HEIF'){
-      setBarcodeMsg('❌ HEIC形式の変換に失敗しました。\niPhoneの設定→カメラ→フォーマット→「互換性優先」に変更するとJPEGで撮影されます。','danger');
-    } else {
-      setBarcodeMsg('❌ '+(e.message||'写真から読み取れませんでした'),'danger');
-    }
+    setBarcodeMsg('写真から読み取れませんでした: '+(e.message||e),'danger');
   }
 }
 
-// JAHIS解析結果をUIに表示し、フォームへ自動入力
-function showJahisParsedResult(parsed){
-  const {drugs, dispensingDate, pharmacyName} = parsed;
-
-  // 結果表示エリアを動的に生成（既存なら再利用）
-  let area = document.getElementById('jahis-result-area');
-  if(!area){
-    area = document.createElement('div');
-    area.id = 'jahis-result-area';
-    area.style.cssText = 'margin-top:12px;padding:14px 16px;background:var(--ok-dim);border:1px solid rgba(42,122,75,0.2);border-radius:var(--radius);';
-    const barcodeBox = document.querySelector('.barcode-box');
-    if(barcodeBox) barcodeBox.appendChild(area);
-  }
-
-  const dateLabel = dispensingDate||'不明';
-  const pharmaLabel = pharmacyName||'';
-
-  let html = `<div style="font-size:13px;font-weight:600;color:var(--ok);margin-bottom:8px">
-    ✅ JAHIS QR読み取り成功 — ${drugs.length}種類の薬を検出
-    ${pharmaLabel?`<span style="font-weight:400;color:var(--text2);margin-left:6px">${pharmaLabel}</span>`:''}
-    ${dateLabel!=='不明'?`<span style="font-weight:400;color:var(--text3);margin-left:6px">調剤日: ${dateLabel}</span>`:''}
-  </div>
-  <div style="font-size:12px;color:var(--text2);margin-bottom:10px">薬名をクリックするとフォームに自動入力します。</div>
-  <div style="display:flex;flex-direction:column;gap:6px">`;
-
-  drugs.forEach((drug, i) => {
-    const timesLabel = drug.times.map(t=>({am:'朝',pm:'昼',eve:'夕',bed:'就寝前'}[t]||t)).join('・');
-    const daysLabel = drug.days?`${drug.days}日分`:'';
-    const cat = guessCategoryFromName(drug.name);
-    const catLabel = {ldl:'LDL',ua:'尿酸',hba1c:'血糖',bp:'血圧',other:'その他'}[cat];
-    html += `<div onclick="fillFormFromJahis(${i})" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;transition:background 0.12s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'">
-      <div>
-        <div style="font-size:13px;font-weight:500;color:var(--text)">${escapeHTML(drug.name)}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px">${timesLabel}${daysLabel?' · '+daysLabel:''}${drug.note?' · '+escapeHTML(drug.note.slice(0,40)):''}
-          <span style="margin-left:6px;padding:1px 6px;border-radius:6px;background:var(--accent-dim);color:var(--accent);font-size:10px">${catLabel}</span>
-        </div>
-      </div>
-      <div style="font-size:11px;color:var(--accent);white-space:nowrap;margin-left:8px">▶ 入力</div>
-    </div>`;
+function loadBarcodeImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error('画像を読み込めませんでした'));
+    img.src=URL.createObjectURL(file);
   });
-
-  html += '</div>';
-  if(drugs.length > 1){
-    html += `<button onclick="fillAllFromJahis()" style="margin-top:10px;width:100%;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer">全${drugs.length}種類をまとめて登録する</button>`;
-  }
-
-  area.innerHTML = html;
-  // 解析結果をグローバルに保持
-  window._jahisDrugs = drugs;
-  setBarcodeMsg(`JAHIS QR解析完了: ${drugs.length}種類`, 'ok');
-}
-
-// 1件フォームに入力
-function fillFormFromJahis(index){
-  const drug = window._jahisDrugs?.[index];
-  if(!drug) return;
-  const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val??''};
-  set('med-name', drug.name);
-  set('med-category', guessCategoryFromName(drug.name));
-  set('med-time', drug.times.join(','));
-  set('med-note', drug.note||'');
-  if(drug.dispensingDate) set('med-start', drug.dispensingDate);
-  if(drug.days) set('med-days', drug.days);
-  document.getElementById('med-name')?.focus();
-  setBarcodeMsg(`「${drug.name}」をフォームに入力しました。内容を確認して「薬を追加」してください。`, 'ok');
-}
-
-// 全件を連続登録
-async function fillAllFromJahis(){
-  const drugs = window._jahisDrugs||[];
-  if(!drugs.length) return;
-  const meds = getMeds();
-  let added = 0;
-  for(const drug of drugs){
-    const name = drug.name.trim();
-    if(!name) continue;
-    const times = drug.times;
-    const cat = guessCategoryFromName(name);
-    meds.push({
-      id: 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
-      name, category:cat,
-      time: times[0]||'am', times,
-      note: drug.note||'',
-      startDate: drug.dispensingDate||todayStr,
-      daysSupply: drug.days||null,
-      barcode:'', barcodes:[],
-      active:true
-    });
-    added++;
-    await new Promise(r=>setTimeout(r,10)); // ID重複防止
-  }
-  await persistGoals();
-  resetMedicationForm();
-  const area=document.getElementById('jahis-result-area');
-  if(area) area.remove();
-  window._jahisDrugs=[];
-  setBarcodeMsg(`✅ ${added}種類の薬を登録しました。`,'ok');
-  renderMedPage();
-  renderTodayMeds();
-}
-
-// HEIC対応の安全な画像ローダー
-async function loadBarcodeImageSafe(file){
-  // createImageBitmap はiOS SafariでHEICを処理できる
-  try{
-    const bitmap = await createImageBitmap(file);
-    const canvas = document.createElement('canvas');
-    canvas.width  = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext('2d', {willReadFrequently:true});
-    ctx.drawImage(bitmap, 0, 0);
-    bitmap.close();
-    return canvas; // canvasはdrawImage / getImageDataに対応
-  }catch{
-    // フォールバック: imgタグ
-    return new Promise((resolve,reject)=>{
-      const img = new Image();
-      img.onload  = ()=>resolve(img);
-      img.onerror = ()=>reject(new Error('画像を読み込めませんでした'));
-      img.src = URL.createObjectURL(file);
-    });
-  }
 }
 
 async function detectCodesFromImage(source){
   const found=[];
-  // ① BarcodeDetector (Android Chrome / macOS Safari 17+)
   if('BarcodeDetector' in window){
     try{
       const formats=await BarcodeDetector.getSupportedFormats?.() || [];
@@ -2121,33 +1809,18 @@ async function detectCodesFromImage(source){
       const detector=new BarcodeDetector({formats:preferred});
       const detected=await detector.detect(source);
       detected.forEach(item=>found.push(item.rawValue));
-    }catch(e){ console.warn('BarcodeDetector:',e); }
+    }catch{}
   }
-  // ② jsQR (QR専用、iOS Safari含む全環境)
   if(window.jsQR){
     scanImageWithJsQR(source).forEach(code=>found.push(code));
-    // コントラスト強調版でも再スキャン（薄い・反射した薬袋に有効）
-    try{
-      const {width,height}=getImageSize(source);
-      if(width>0&&height>0){
-        const sc=Math.min(1,1600/Math.max(width,height));
-        const w=Math.max(1,Math.round(width*sc)), h=Math.max(1,Math.round(height*sc));
-        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
-        const cx=cv.getContext('2d',{willReadFrequently:true});
-        cx.filter='contrast(1.8) brightness(1.05)';
-        cx.drawImage(source,0,0,w,h);
-        cx.filter='none';
-        scanImageWithJsQR(cv).forEach(code=>found.push(code));
-      }
-    }catch{}
   }
   return [...new Set(found.map(normalizeBarcode).filter(Boolean))];
 }
 
 function getImageSize(source){
   return {
-    width: source.naturalWidth||source.videoWidth||source.width||0,
-    height:source.naturalHeight||source.videoHeight||source.height||0
+    width:source.naturalWidth||source.videoWidth||source.width,
+    height:source.naturalHeight||source.videoHeight||source.height
   };
 }
 
@@ -2209,84 +1882,144 @@ function scanCanvasTiles(canvas){
 }
 
 async function startBarcodeScan(){
-  const video=document.getElementById('barcode-video');
-  if(!video)return;
-  if(!('BarcodeDetector' in window)){
-    setBarcodeMsg('このブラウザはカメラ読み取りに未対応です。コードを手入力してください。','danger');
-    return;
-  }
+  const video = document.getElementById('barcode-video');
+  if(!video) return;
+
   if(!navigator.mediaDevices?.getUserMedia){
-    setBarcodeMsg('カメラを使えません。HTTPSの公開ページで開いてください。','danger');
+    setBarcodeMsg('カメラを使えません。HTTPSページで開いてください。','danger');
     return;
   }
+
+  // 前回のスキャンを確実に終了してから再起動
+  barcodeScanning  = false;
+  barcodeDetecting = false;
+  if(barcodeScanTimer){ clearTimeout(barcodeScanTimer); barcodeScanTimer=null; }
+  if(barcodeStream){ barcodeStream.getTracks().forEach(t=>t.stop()); barcodeStream=null; }
+  video.pause(); video.srcObject=null;
+
+  // BarcodeDetector が使えない環境（iOS Safari等）はjsQRでフォールバック
+  const useBarcodeDetector = 'BarcodeDetector' in window;
+
   try{
-    stopBarcodeScan(false);
-    const formats=await BarcodeDetector.getSupportedFormats?.() || [];
-    const preferred=['ean_13','ean_8','code_128','code_39','itf','qr_code','data_matrix'].filter(f=>!formats.length||formats.includes(f));
-    const detector=new BarcodeDetector({formats:preferred});
-    barcodeStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-    video.srcObject=barcodeStream;
-    video.style.display='block';
+    barcodeStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
+      audio: false
+    });
+    video.srcObject = barcodeStream;
+    video.style.display = 'block';
     await video.play();
-    barcodeScanning=true;
-    setBarcodeMsg('読み取り中です。QRを1枚カメラに映してください。読めたら自動で停止します。');
-    runBarcodeScanLoop(detector,video,300);
+    barcodeScanning = true;
+    setBarcodeMsg('読み取り中です。QRを1枚カメラに映してください。読めたら自動停止します。');
+
+    if(useBarcodeDetector){
+      const formats = await BarcodeDetector.getSupportedFormats?.() || [];
+      const preferred = ['ean_13','ean_8','code_128','code_39','itf','qr_code','data_matrix']
+        .filter(f => !formats.length || formats.includes(f));
+      const detector = new BarcodeDetector({formats:preferred});
+      runBarcodeScanLoop(detector, video, 300);
+    } else {
+      // iOS Safari: jsQRでビデオフレームをスキャン
+      if(!window.jsQR){
+        stopBarcodeScan(false);
+        setBarcodeMsg('このブラウザはカメラ読み取りに未対応です。「写真からまとめて読み取る」をお使いください。','danger');
+        return;
+      }
+      runJsQRVideoLoop(video, 400);
+    }
   }catch(e){
     stopBarcodeScan(false);
-    setBarcodeMsg('カメラを開始できませんでした: '+(e.message||e),'danger');
+    if(e.name==='NotAllowedError'){
+      setBarcodeMsg('カメラのアクセスが拒否されています。ブラウザの設定でカメラを許可してください。','danger');
+    }else{
+      setBarcodeMsg('カメラを開始できませんでした: '+(e.message||e),'danger');
+    }
   }
+}
+
+// iOS Safari向け: jsQRでビデオフレームをスキャンするループ
+function runJsQRVideoLoop(video, delay=400){
+  if(!barcodeScanning || !barcodeStream) return;
+  if(barcodeDetecting){ barcodeScanTimer=setTimeout(()=>runJsQRVideoLoop(video,delay),delay); return; }
+
+  barcodeScanTimer = setTimeout(()=>{
+    if(!barcodeScanning || !barcodeStream) return;
+    if(video.readyState < 2){ runJsQRVideoLoop(video,700); return; }
+
+    barcodeDetecting = true;
+    try{
+      const w = video.videoWidth, h = video.videoHeight;
+      if(!w || !h){ barcodeDetecting=false; runJsQRVideoLoop(video,400); return; }
+      const cv = document.createElement('canvas');
+      cv.width=w; cv.height=h;
+      cv.getContext('2d',{willReadFrequently:true}).drawImage(video,0,0,w,h);
+      const codes = scanImageWithJsQR(cv);
+      if(codes.length){
+        let added=0;
+        codes.forEach(c=>{ if(addBarcodeCode(c)) added++; });
+        barcodeDetecting = false;
+        barcodeScanning  = false;
+        stopBarcodeScan(false);
+        setBarcodeMsg(`✅ 読み取り完了: 合計${barcodeCodes.length}件。\n続けて読む場合は「QRを1枚読み取る」を再度押してください。`,'ok');
+        return;
+      }
+    }catch(e){ console.warn('jsQR video scan:',e); }
+    barcodeDetecting = false;
+    runJsQRVideoLoop(video, delay);
+  }, delay);
 }
 
 function runBarcodeScanLoop(detector,video,delay=700){
-  if(!barcodeScanning||!barcodeStream)return;
-  barcodeScanTimer=setTimeout(async ()=>{
-    if(!barcodeScanning||barcodeDetecting)return runBarcodeScanLoop(detector,video,delay);
-    if(video.readyState<2)return runBarcodeScanLoop(detector,video,700);
-    barcodeDetecting=true;
-    let nextDelay=700;
+  // ガード: 停止済みなら即終了
+  if(!barcodeScanning || !barcodeStream) return;
+
+  barcodeScanTimer = setTimeout(async () => {
+    // タイマー発火時点で停止済みなら即終了（finallyでの再帰を防ぐ）
+    if(!barcodeScanning || !barcodeStream) return;
+    if(video.readyState < 2){ runBarcodeScanLoop(detector,video,700); return; }
+    if(barcodeDetecting){ runBarcodeScanLoop(detector,video,delay); return; }
+
+    barcodeDetecting = true;
+    let detected = [];
     try{
-      const codes=await detector.detect(video);
-      if(codes&&codes.length){
-        let added=0;
-        codes.forEach(item=>{if(addBarcodeCode(item.rawValue))added++});
-        if(added){
-          barcodeDetecting=false;
-          stopBarcodeScan(false);
-          setBarcodeMsg(`読み取り完了: 合計${barcodeCodes.length}件。次のQRはもう一度「QRを1枚読み取る」を押してください。`,'ok');
-          return;
-        }else{
-          barcodeDetecting=false;
-          stopBarcodeScan(false);
-          setBarcodeMsg(`読み取り完了: すでに登録済みのQRでした（合計${barcodeCodes.length}件）。`,'ok');
-          return;
-        }
-      }
+      detected = await detector.detect(video);
     }catch(e){
-      nextDelay=1000;
-    }finally{
-      barcodeDetecting=false;
-      runBarcodeScanLoop(detector,video,nextDelay);
+      // detect失敗（videoが無効等）→ 少し待って再試行
+      barcodeDetecting = false;
+      if(barcodeScanning) runBarcodeScanLoop(detector,video,1000);
+      return;
     }
-  },delay);
+
+    // QR検出成功
+    if(detected && detected.length){
+      let added = 0;
+      detected.forEach(item=>{ if(addBarcodeCode(item.rawValue)) added++; });
+      // 先にフラグを落としてからストリームを止める
+      barcodeDetecting = false;
+      barcodeScanning  = false;          // ← stopBarcodeScan前に落とすことで再帰を遮断
+      stopBarcodeScan(false);
+      if(added){
+        setBarcodeMsg(`✅ 読み取り完了: 合計${barcodeCodes.length}件。\n続けて読む場合は「QRを1枚読み取る」を再度押してください。`,'ok');
+      }else{
+        setBarcodeMsg(`読み取り完了: すでに登録済みのQRでした（合計${barcodeCodes.length}件）。`,'ok');
+      }
+      return; // ← finallyを使わないので再帰しない
+    }
+
+    // 未検出 → 次のループへ
+    barcodeDetecting = false;
+    runBarcodeScanLoop(detector,video,300);
+
+  }, delay);
 }
 
 function stopBarcodeScan(showComplete=true){
-  barcodeScanning=false;
-  barcodeDetecting=false;
-  if(barcodeScanTimer){
-    clearTimeout(barcodeScanTimer);
-    barcodeScanTimer=null;
-  }
-  if(barcodeStream){
-    barcodeStream.getTracks().forEach(t=>t.stop());
-    barcodeStream=null;
-  }
+  // フラグを最初に落とす → runBarcodeScanLoop の先頭ガードが機能する
+  barcodeScanning  = false;
+  barcodeDetecting = false;
+  if(barcodeScanTimer){ clearTimeout(barcodeScanTimer); barcodeScanTimer=null; }
+  if(barcodeStream){ barcodeStream.getTracks().forEach(t=>t.stop()); barcodeStream=null; }
   const video=document.getElementById('barcode-video');
-  if(video){
-    video.pause();
-    video.srcObject=null;
-    video.style.display='none';
-  }
+  if(video){ video.pause(); video.srcObject=null; video.style.display='none'; }
   if(showComplete){
     setBarcodeMsg(barcodeCodes.length?`読み取り完了: 合計${barcodeCodes.length}件です。`:'読み取りを停止しました。','ok');
   }
