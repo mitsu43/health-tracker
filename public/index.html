@@ -488,6 +488,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
             <option value="am">朝</option>
             <option value="noon">昼</option>
             <option value="night">晩</option>
+            <option value="am,night">朝晩</option>
+            <option value="am,noon,night">朝昼晩</option>
+            <option value="noon,night">昼晩</option>
+            <option value="am,noon">朝昼</option>
           </select>
         </div>
         <div class="form-group"><label>メモ</label><input type="text" id="med-note" placeholder="例: 食後、寝る前など"></div>
@@ -909,6 +913,15 @@ const MED_TIMES = {
   am:{label:'朝'},
   noon:{label:'昼'},
   night:{label:'晩'}
+};
+const MED_TIME_PATTERNS = {
+  am:'朝',
+  noon:'昼',
+  night:'晩',
+  'am,night':'朝晩',
+  'am,noon,night':'朝昼晩',
+  'noon,night':'昼晩',
+  'am,noon':'朝昼'
 };
 
 const VITAL_FIELDS = ['sbp','dbp','pulse','wt','bf','vis','waist','bmr','steps','water_ml','slp','slpscore','skeletal_muscle','asm_index','lean_mass','body_water','ldl','ua','hba1c','fg','tg','hdl'];
@@ -1460,6 +1473,25 @@ function medCheckId(id){
   return 'med_'+String(id).replace(/[^a-zA-Z0-9_-]/g,'');
 }
 
+function medDoseCheckId(id,time){
+  return medCheckId(id)+'_'+String(time||'all').replace(/[^a-zA-Z0-9_-]/g,'');
+}
+
+function medTimes(m){
+  if(Array.isArray(m.times)&&m.times.length)return m.times;
+  if(typeof m.time==='string'&&m.time.includes(','))return m.time.split(',').filter(Boolean);
+  return [m.time||'am'];
+}
+
+function medTimeLabel(m){
+  const key=medTimes(m).join(',');
+  return MED_TIME_PATTERNS[key] || medTimes(m).map(t=>MED_TIMES[t]?.label||t).join('');
+}
+
+function isMedDoseChecked(checks,m,time){
+  return !!(checks[medDoseCheckId(m.id,time)] || checks[medCheckId(m.id)]);
+}
+
 function renderMedPage(){
   const start=document.getElementById('med-start');
   if(start&&!start.value)start.value=todayStr;
@@ -1479,10 +1511,11 @@ function renderTodayMeds(){
     return;
   }
   const c=today().c||{};
-  const done=meds.filter(m=>c[medCheckId(m.id)]).length;
-  const pct=Math.round(done/Math.max(1,meds.length)*100);
+  const doses=meds.flatMap(m=>medTimes(m).map(time=>({m,time})));
+  const done=doses.filter(d=>isMedDoseChecked(c,d.m,d.time)).length;
+  const pct=Math.round(done/Math.max(1,doses.length)*100);
   el.innerHTML=`<div class="card">
-    <div class="card-title">💊 今日の服薬 ${done}/${meds.length} (${pct}%)</div>
+    <div class="card-title">💊 今日の服薬 ${done}/${doses.length} (${pct}%)</div>
     <div class="quick-note" style="margin-bottom:10px">目的と朝昼晩で確認します。飲めたものをチェックしてください。</div>
     <div id="today-med-matrix"></div>
   </div>`;
@@ -1506,23 +1539,25 @@ function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
   catKeys.forEach(cat=>{
     html+=`<div class="med-cell med-row-head">${MED_CATS[cat].label}</div>`;
     timeKeys.forEach(time=>{
-      const cellMeds=meds.filter(m=>m.category===cat&&m.time===time);
-      html+=`<div class="med-cell">${cellMeds.length?cellMeds.map(m=>renderMedPill(m,{editable,checkable,checked:!!c[medCheckId(m.id)]})).join(''):'<div class="med-empty">登録なし</div>'}</div>`;
+      const cellMeds=meds.filter(m=>m.category===cat&&medTimes(m).includes(time));
+      html+=`<div class="med-cell">${cellMeds.length?cellMeds.map(m=>renderMedPill(m,{editable,checkable,time,checked:isMedDoseChecked(c,m,time)})).join(''):'<div class="med-empty">登録なし</div>'}</div>`;
     });
   });
   html+='</div></div>';
   el.innerHTML=html;
 }
 
-function renderMedPill(m,{editable=false,checkable=false,checked=false}={}){
+function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}={}){
   const tag=MED_CATS[m.category]?.tag||'bp';
   const note=m.note?`<div class="med-note">${escapeHTML(m.note)}</div>`:'';
   const period=getMedPeriodText(m);
-  const checkButton=checkable?`<button class="med-mini-btn" onclick="togMed('${escapeAttr(m.id)}')">${checked?'済':'飲んだ'}</button>`:'';
+  const doseLabel=time?MED_TIMES[time]?.label||time:medTimeLabel(m);
+  const checkButton=checkable?`<button class="med-mini-btn" onclick="togMed('${escapeAttr(m.id)}','${escapeAttr(time)}')">${checked?'済':'飲んだ'}</button>`:'';
   const deleteButton=editable?`<button class="med-mini-btn" onclick="deleteMedication('${escapeAttr(m.id)}')">削除</button>`:'';
   return `<div class="med-pill${checked?' checked':''}">
     <div>
       <div class="med-name">${escapeHTML(m.name||'名称未設定')}</div>
+      <div class="med-note">タイミング: ${escapeHTML(doseLabel)}</div>
       ${note}
       <div class="med-period">${escapeHTML(period)}</div>
       <div class="tags" style="margin-top:6px"><span class="tag tag-${tag}">${escapeHTML(MED_CATS[m.category]?.label||'その他')}</span></div>
@@ -1534,7 +1569,8 @@ function renderMedPill(m,{editable=false,checkable=false,checked=false}={}){
 async function addMedication(){
   const name=document.getElementById('med-name')?.value.trim();
   const category=document.getElementById('med-category')?.value||'other';
-  const time=document.getElementById('med-time')?.value||'am';
+  const timeValue=document.getElementById('med-time')?.value||'am';
+  const times=timeValue.split(',').filter(Boolean);
   const note=document.getElementById('med-note')?.value.trim()||'';
   const startDate=document.getElementById('med-start')?.value||'';
   const daysSupplyRaw=document.getElementById('med-days')?.value||'';
@@ -1543,7 +1579,7 @@ async function addMedication(){
   if(!name){if(msg)msg.textContent='薬名を入力してください';return}
   if(daysSupplyRaw && (!daysSupply || daysSupply<1)){if(msg)msg.textContent='処方日数は1以上で入力してください';return}
   const meds=getMeds();
-  meds.push({id:'m'+Date.now().toString(36),name,category,time,note,startDate,daysSupply,active:true});
+  meds.push({id:'m'+Date.now().toString(36),name,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true});
   await persistGoals();
   ['med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   if(msg){msg.textContent='薬を追加しました';setTimeout(()=>msg.textContent='',2500)}
@@ -1618,10 +1654,11 @@ function renderMedCalendar(){
   el.innerHTML=html;
 }
 
-async function togMed(id){
+async function togMed(id,time){
   const c=today().c;
-  const key=medCheckId(id);
+  const key=medDoseCheckId(id,time||'all');
   c[key]=!c[key];
+  delete c[medCheckId(id)];
   await saveDay(todayStr);
   renderTodayMeds();
 }
@@ -1944,8 +1981,9 @@ function buildCoachContext(){
   const officeMissed=OFFICE_PLAN.filter(r=>!todayChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
   const meds=getMeds().filter(m=>m.active!==false);
   const medToday=meds.filter(m=>isMedActiveOn(m,todayStr));
-  const medDone=medToday.filter(m=>todayChecks[medCheckId(m.id)]).map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',period:getMedPeriodText(m)}));
-  const medMissed=medToday.filter(m=>!todayChecks[medCheckId(m.id)]).map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',note:m.note||'',period:getMedPeriodText(m)}));
+  const medDosesToday=medToday.flatMap(m=>medTimes(m).map(time=>({m,time})));
+  const medDone=medDosesToday.filter(d=>isMedDoseChecked(todayChecks,d.m,d.time)).map(d=>({name:d.m.name,category:MED_CATS[d.m.category]?.label||'その他',time:MED_TIMES[d.time]?.label||'',period:getMedPeriodText(d.m)}));
+  const medMissed=medDosesToday.filter(d=>!isMedDoseChecked(todayChecks,d.m,d.time)).map(d=>({name:d.m.name,category:MED_CATS[d.m.category]?.label||'その他',time:MED_TIMES[d.time]?.label||'',note:d.m.note||'',period:getMedPeriodText(d.m)}));
   const records=days.map(date=>({date, checks:DB[date]?.c||{}, vitals:DB[date]?.v||{}}))
     .filter(r=>Object.keys(r.checks).length||Object.keys(r.vitals).length);
   const missedTop=ROUTINES.map(r=>{
@@ -1969,10 +2007,10 @@ function buildCoachContext(){
       completion: OFFICE_PLAN.length?Math.round(officeDone.length/OFFICE_PLAN.length*100):0
     },
     medicationPlan: {
-      medicines: meds.map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',note:m.note||'',period:getMedPeriodText(m),activeToday:isMedActiveOn(m,todayStr)})),
+      medicines: meds.map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:medTimeLabel(m),note:m.note||'',period:getMedPeriodText(m),activeToday:isMedActiveOn(m,todayStr)})),
       done: medDone,
       missed: medMissed,
-      completion: medToday.length?Math.round(medDone.length/medToday.length*100):0
+      completion: medDosesToday.length?Math.round(medDone.length/medDosesToday.length*100):0
     },
     recentAverages: {
       steps: avgRecent('steps',days), sleepHours: avgRecent('slp',days),
