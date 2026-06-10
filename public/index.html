@@ -174,6 +174,18 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .coach-log-day-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px}
 .coach-log-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
 .coach-log-target{font-size:11px;color:var(--text3)}
+.med-matrix{display:grid;grid-template-columns:110px repeat(3,1fr);border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg2)}
+.med-cell{min-height:72px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:10px;background:var(--bg2)}
+.med-cell:nth-child(4n){border-right:none}
+.med-head{background:var(--bg3);font-size:12px;font-weight:700;color:var(--text2);min-height:auto}
+.med-row-head{background:var(--bg3);font-size:12px;font-weight:700;color:var(--text)}
+.med-pill{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;border:1px solid var(--border);background:var(--bg3);border-radius:8px;padding:8px;margin-bottom:6px;font-size:12px;line-height:1.45}
+.med-pill.checked{background:var(--ok-dim);border-color:rgba(42,122,75,0.22)}
+.med-name{font-weight:700;color:var(--text)}
+.med-note{font-size:11px;color:var(--text3);margin-top:2px}
+.med-mini-btn{border:1px solid var(--border2);background:var(--bg2);color:var(--text2);border-radius:999px;padding:3px 7px;font-size:10px;cursor:pointer;white-space:nowrap}
+.med-mini-btn:hover{background:var(--accent-dim);color:var(--accent)}
+.med-empty{font-size:11px;color:var(--text3);line-height:1.5}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -299,6 +311,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .coach-summary-grid,.time-grid,.quick-grid{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
   .coach-log-filter{grid-template-columns:1fr}
+  .med-matrix{min-width:680px}
+  .med-matrix-wrap{overflow-x:auto}
   .form-grid{grid-template-columns:1fr 1fr}
   .card,.score-panel,.problem-card,.chart-card,.time-card{padding:16px;border-radius:12px;margin-bottom:12px}
   .card-title{font-size:12px;margin-bottom:12px}
@@ -356,6 +370,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="nav-section">入力・操作</div>
     <div class="nav-item active" onclick="sw('today')"><span class="nav-icon">✅</span><span>今日のノルマ</span></div>
     <div class="nav-item" onclick="sw('record')"><span class="nav-icon">📝</span><span>数値を記録</span></div>
+    <div class="nav-item" onclick="sw('meds')"><span class="nav-icon">💊</span><span>お薬管理</span></div>
     <div class="nav-item" onclick="sw('coach')"><span class="nav-icon">💬</span><span>伴走相談</span></div>
     <div class="nav-item" onclick="sw('settings')"><span class="nav-icon">⚙️</span><span>設定・保存</span></div>
     <div class="nav-section">見る・分析</div>
@@ -433,7 +448,58 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     </div>
     <div class="time-grid" id="time-summary"></div>
     <div id="office-plan-body"></div>
+    <div id="today-med-body"></div>
     <div id="routine-body"></div>
+  </div>
+</div>
+
+<!-- MEDS -->
+<div id="page-meds" class="page">
+  <div class="topbar"><div class="page-title">💊 お薬管理</div></div>
+  <div style="padding:0 32px">
+    <div class="card">
+      <div class="card-title">薬を登録</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
+        薬名、目的、飲むタイミングを登録します。服薬の変更・中止判断は必ず医師や薬剤師の指示に従ってください。
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label>薬名</label><input type="text" id="med-name" placeholder="例: ○○錠 10mg"></div>
+        <div class="form-group">
+          <label>症状・目的分類</label>
+          <select id="med-category" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px">
+            <option value="ldl">LDL</option>
+            <option value="ua">尿酸値</option>
+            <option value="hba1c">HbA1c</option>
+            <option value="other">その他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>飲むタイミング</label>
+          <select id="med-time" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px">
+            <option value="am">朝</option>
+            <option value="noon">昼</option>
+            <option value="night">晩</option>
+          </select>
+        </div>
+        <div class="form-group"><label>メモ</label><input type="text" id="med-note" placeholder="例: 食後、寝る前など"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="addMedication()">薬を追加</button>
+        <span id="med-save-msg" style="font-size:12px;color:var(--ok)"></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">目的 × 朝昼晩 マトリックス</div>
+      <div id="med-matrix-body"></div>
+    </div>
+    <div class="alert-box info">
+      <div class="alert-icon">ℹ️</div>
+      <div class="alert-body">
+        <div class="alert-title">注意</div>
+        <div class="alert-desc">この画面は飲み忘れ防止の記録用です。薬の量・回数・飲み合わせ・中止は、医師または薬剤師に確認してください。</div>
+      </div>
+    </div>
+    <div class="section-spacer"></div>
   </div>
 </div>
 
@@ -817,6 +883,18 @@ const OFFICE_PLAN = [
   {id:'office_no_sweet_drink', time:'終日', label:'甘い飲み物を避けて水/お茶にする', target:'水分1.5Lの一部', why:'オフィスで増えやすい糖質を抑え、水分量も確保できる。', tags:['hba1c','ua','weight']}
 ];
 
+const MED_CATS = {
+  ldl:{label:'LDL', tag:'ldl'},
+  ua:{label:'尿酸値', tag:'ua'},
+  hba1c:{label:'HbA1c', tag:'hba1c'},
+  other:{label:'その他', tag:'bp'}
+};
+const MED_TIMES = {
+  am:{label:'朝'},
+  noon:{label:'昼'},
+  night:{label:'晩'}
+};
+
 const VITAL_FIELDS = ['sbp','dbp','pulse','wt','bf','vis','waist','bmr','steps','water_ml','slp','slpscore','skeletal_muscle','asm_index','lean_mass','body_water','ldl','ua','hba1c','fg','tg','hdl'];
 const QUICK_FIELDS = ['steps','water_ml','wt','slp','sbp','dbp','waist','bf','vis'];
 const GOAL_FIELDS = ['wt','sbp','dbp','ldl','ua','hba1c','steps','water_ml','slp','bf','waist'];
@@ -959,14 +1037,15 @@ function fmtShort(s){const[,m,d]=s.split('-');return `${parseInt(m)}/${parseInt(
 
 // ========== NAV ==========
 function sw(name){
-  const names=['today','record','coach','settings','analysis','impact','sim','trends','history'];
+  const names=['today','record','meds','coach','settings','analysis','impact','sim','trends','history'];
   document.querySelectorAll('.nav-item').forEach((el,i)=>{
     el.classList.toggle('active',names[i]===name);
   });
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  if(name==='today'){renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine()}
+  if(name==='today'){renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderTodayMeds();renderRoutine()}
   if(name==='record'){renderRec()}
+  if(name==='meds'){renderMedPage()}
   if(name==='analysis'){renderAnalysis()}
   if(name==='impact'){renderImpact()}
   if(name==='sim'){renderSim()}
@@ -1352,6 +1431,114 @@ async function togOffice(id){
   renderDayDiagnosis();
 }
 
+// ========== MEDICATIONS ==========
+function getMeds(){
+  if(!Array.isArray(GOALS.meds))GOALS.meds=[];
+  return GOALS.meds;
+}
+
+function medCheckId(id){
+  return 'med_'+String(id).replace(/[^a-zA-Z0-9_-]/g,'');
+}
+
+function renderMedPage(){
+  renderMedMatrix('med-matrix-body',{editable:true,checkable:false});
+}
+
+function renderTodayMeds(){
+  const el=document.getElementById('today-med-body');
+  if(!el)return;
+  const meds=getMeds().filter(m=>m.active!==false);
+  if(!meds.length){
+    el.innerHTML=`<div class="card">
+      <div class="card-title">💊 今日の服薬</div>
+      <div class="quick-note">薬はまだ登録されていません。「お薬管理」から登録できます。</div>
+    </div>`;
+    return;
+  }
+  const c=today().c||{};
+  const done=meds.filter(m=>c[medCheckId(m.id)]).length;
+  const pct=Math.round(done/Math.max(1,meds.length)*100);
+  el.innerHTML=`<div class="card">
+    <div class="card-title">💊 今日の服薬 ${done}/${meds.length} (${pct}%)</div>
+    <div class="quick-note" style="margin-bottom:10px">目的と朝昼晩で確認します。飲めたものをチェックしてください。</div>
+    <div id="today-med-matrix"></div>
+  </div>`;
+  renderMedMatrix('today-med-matrix',{editable:false,checkable:true});
+}
+
+function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
+  const el=document.getElementById(targetId);
+  if(!el)return;
+  const meds=getMeds().filter(m=>m.active!==false);
+  const catKeys=Object.keys(MED_CATS);
+  const timeKeys=Object.keys(MED_TIMES);
+  if(!meds.length){
+    el.innerHTML='<div class="quick-note">登録済みの薬はありません。</div>';
+    return;
+  }
+  const c=today().c||{};
+  let html='<div class="med-matrix-wrap"><div class="med-matrix">';
+  html+='<div class="med-cell med-head">目的</div>';
+  timeKeys.forEach(t=>html+=`<div class="med-cell med-head">${MED_TIMES[t].label}</div>`);
+  catKeys.forEach(cat=>{
+    html+=`<div class="med-cell med-row-head">${MED_CATS[cat].label}</div>`;
+    timeKeys.forEach(time=>{
+      const cellMeds=meds.filter(m=>m.category===cat&&m.time===time);
+      html+=`<div class="med-cell">${cellMeds.length?cellMeds.map(m=>renderMedPill(m,{editable,checkable,checked:!!c[medCheckId(m.id)]})).join(''):'<div class="med-empty">登録なし</div>'}</div>`;
+    });
+  });
+  html+='</div></div>';
+  el.innerHTML=html;
+}
+
+function renderMedPill(m,{editable=false,checkable=false,checked=false}={}){
+  const tag=MED_CATS[m.category]?.tag||'bp';
+  const note=m.note?`<div class="med-note">${escapeHTML(m.note)}</div>`:'';
+  const checkButton=checkable?`<button class="med-mini-btn" onclick="togMed('${escapeAttr(m.id)}')">${checked?'済':'飲んだ'}</button>`:'';
+  const deleteButton=editable?`<button class="med-mini-btn" onclick="deleteMedication('${escapeAttr(m.id)}')">削除</button>`:'';
+  return `<div class="med-pill${checked?' checked':''}">
+    <div>
+      <div class="med-name">${escapeHTML(m.name||'名称未設定')}</div>
+      ${note}
+      <div class="tags" style="margin-top:6px"><span class="tag tag-${tag}">${escapeHTML(MED_CATS[m.category]?.label||'その他')}</span></div>
+    </div>
+    <div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end">${checkButton}${deleteButton}</div>
+  </div>`;
+}
+
+async function addMedication(){
+  const name=document.getElementById('med-name')?.value.trim();
+  const category=document.getElementById('med-category')?.value||'other';
+  const time=document.getElementById('med-time')?.value||'am';
+  const note=document.getElementById('med-note')?.value.trim()||'';
+  const msg=document.getElementById('med-save-msg');
+  if(!name){if(msg)msg.textContent='薬名を入力してください';return}
+  const meds=getMeds();
+  meds.push({id:'m'+Date.now().toString(36),name,category,time,note,active:true});
+  await persistGoals();
+  ['med-name','med-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  if(msg){msg.textContent='薬を追加しました';setTimeout(()=>msg.textContent='',2500)}
+  renderMedPage();
+  renderTodayMeds();
+}
+
+async function deleteMedication(id){
+  if(!confirm('この薬を削除しますか？\n過去の服薬チェックは日次データに残ります。'))return;
+  GOALS.meds=getMeds().filter(m=>String(m.id)!==String(id));
+  await persistGoals();
+  renderMedPage();
+  renderTodayMeds();
+}
+
+async function togMed(id){
+  const c=today().c;
+  const key=medCheckId(id);
+  c[key]=!c[key];
+  await saveDay(todayStr);
+  renderTodayMeds();
+}
+
 // ========== RECORD ==========
 function renderRec(){
   document.getElementById('rec-date').textContent=fmtJP(recDateStr);
@@ -1668,6 +1855,9 @@ function buildCoachContext(){
   const todayChecks=(today()&&today().c)||{};
   const officeDone=OFFICE_PLAN.filter(r=>todayChecks[r.id]).map(r=>r.label);
   const officeMissed=OFFICE_PLAN.filter(r=>!todayChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
+  const meds=getMeds().filter(m=>m.active!==false);
+  const medDone=meds.filter(m=>todayChecks[medCheckId(m.id)]).map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||''}));
+  const medMissed=meds.filter(m=>!todayChecks[medCheckId(m.id)]).map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',note:m.note||''}));
   const records=days.map(date=>({date, checks:DB[date]?.c||{}, vitals:DB[date]?.v||{}}))
     .filter(r=>Object.keys(r.checks).length||Object.keys(r.vitals).length);
   const missedTop=ROUTINES.map(r=>{
@@ -1689,6 +1879,12 @@ function buildCoachContext(){
       done: officeDone,
       missed: officeMissed,
       completion: OFFICE_PLAN.length?Math.round(officeDone.length/OFFICE_PLAN.length*100):0
+    },
+    medicationPlan: {
+      medicines: meds.map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:MED_TIMES[m.time]?.label||'',note:m.note||''})),
+      done: medDone,
+      missed: medMissed,
+      completion: meds.length?Math.round(medDone.length/meds.length*100):0
     },
     recentAverages: {
       steps: avgRecent('steps',days), sleepHours: avgRecent('slp',days),
@@ -2162,14 +2358,19 @@ function renderHistory(){
 function renderSettings(){
   GOAL_FIELDS.forEach(k=>{const el=document.getElementById('g-'+k);if(el)el.value=GOALS[k]||''});
 }
+
+async function persistGoals(){
+  await fetch('/api/goals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(GOALS)});
+  localStorage.setItem('hrtrack_goals_cache',JSON.stringify(GOALS));
+}
+
 async function saveGoals(){
   GOAL_FIELDS.forEach(k=>{
     const el=document.getElementById('g-'+k);
     if(el&&el.value!=='')GOALS[k]=parseFloat(el.value);
   });
   try{
-    await fetch('/api/goals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(GOALS)});
-    localStorage.setItem('hrtrack_goals_cache',JSON.stringify(GOALS));
+    await persistGoals();
     alert('目標を保存しました');
   }catch{ alert('保存に失敗しました（オフライン？）') }
 }
@@ -2229,7 +2430,7 @@ window.addEventListener('DOMContentLoaded',async ()=>{
   initSidebar();
   document.getElementById('today-label').textContent=fmtJP(todayStr);
   await loadDB();
-  renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
+  renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderTodayMeds();renderRoutine();
   startOnlineRetry();
 });
 </script>
