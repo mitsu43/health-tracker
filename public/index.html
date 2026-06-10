@@ -492,6 +492,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
           <textarea id="med-barcode" rows="3" placeholder="複数QRは1行に1コードで保存します。カメラで読み取り、または手入力してください。"></textarea>
         </div>
         <div class="barcode-actions">
+          <button class="btn btn-primary" onclick="document.getElementById('barcode-image-file').click()">写真からまとめて読み取る</button>
+          <input type="file" id="barcode-image-file" accept="image/*" style="display:none" onchange="readBarcodeImage(event)">
           <button class="btn btn-ghost" onclick="startBarcodeScan()">QRを1枚読み取る</button>
           <button class="btn btn-ghost" onclick="stopBarcodeScan()">停止</button>
           <button class="btn btn-ghost" onclick="findMedicationByBarcode()">登録済み薬を検索</button>
@@ -1759,6 +1761,39 @@ function findMedicationByBarcode(){
     setBarcodeMsg('登録済みの薬を表示しました','ok');
   }else{
     setBarcodeMsg('同じバーコードの登録はまだありません');
+  }
+}
+
+async function readBarcodeImage(event){
+  const file=event.target.files?.[0];
+  event.target.value='';
+  if(!file)return;
+  if(!('BarcodeDetector' in window)){
+    setBarcodeMsg('このブラウザは画像からのQR読み取りに未対応です。コードを手入力してください。','danger');
+    return;
+  }
+  try{
+    stopBarcodeScan(false);
+    setBarcodeMsg('写真からQRを読み取っています...');
+    const formats=await BarcodeDetector.getSupportedFormats?.() || [];
+    const preferred=['qr_code','data_matrix','ean_13','ean_8','code_128','code_39','itf'].filter(f=>!formats.length||formats.includes(f));
+    const detector=new BarcodeDetector({formats:preferred});
+    const bitmap=await createImageBitmap(file);
+    const codes=await detector.detect(bitmap);
+    bitmap.close?.();
+    if(!codes.length){
+      setBarcodeMsg('QRを検出できませんでした。写真を明るく、QR全体が入るように撮り直してください。','danger');
+      return;
+    }
+    let added=0;
+    codes.forEach(item=>{if(addBarcodeCode(item.rawValue))added++});
+    if(added){
+      setBarcodeMsg(`読み取り完了: ${added}件追加、合計${barcodeCodes.length}件です。`,'ok');
+    }else{
+      setBarcodeMsg(`読み取り完了: すべて登録済みでした（合計${barcodeCodes.length}件）。`,'ok');
+    }
+  }catch(e){
+    setBarcodeMsg('写真から読み取れませんでした: '+(e.message||e),'danger');
   }
 }
 
