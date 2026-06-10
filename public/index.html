@@ -193,6 +193,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .med-cal-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);margin-bottom:3px}
 .med-cal-count{font-weight:700;color:var(--accent);font-size:11px}
 .med-cal-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.med-schedule-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.med-schedule-col{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px}
+.med-schedule-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px}
+.med-schedule-list{display:flex;flex-direction:column;gap:6px}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -322,6 +326,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .med-matrix-wrap{overflow-x:auto}
   .med-calendar{min-width:680px}
   .med-calendar-wrap{overflow-x:auto}
+  .med-schedule-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr 1fr}
   .card,.score-panel,.problem-card,.chart-card,.time-card{padding:16px;border-radius:12px;margin-bottom:12px}
   .card-title{font-size:12px;margin-bottom:12px}
@@ -467,6 +472,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   <div class="topbar"><div class="page-title">💊 お薬管理</div></div>
   <div style="padding:0 32px">
     <div class="card">
+      <div class="card-title">今日飲む薬（朝・昼・夜）</div>
+      <div id="med-schedule-top"></div>
+    </div>
+    <div class="card">
       <div class="card-title">薬を登録</div>
       <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
         薬名、目的、飲むタイミングを登録します。服薬の変更・中止判断は必ず医師や薬剤師の指示に従ってください。
@@ -499,7 +508,9 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <div class="form-group"><label>処方日数（日分）</label><input type="number" id="med-days" min="1" placeholder="例: 30"></div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="addMedication()">薬を追加</button>
+        <input type="hidden" id="med-edit-id">
+        <button class="btn btn-primary" onclick="addMedication()" id="med-submit-btn">薬を追加</button>
+        <button class="btn btn-ghost" onclick="cancelMedicationEdit()" id="med-cancel-btn" style="display:none">編集をキャンセル</button>
         <span id="med-save-msg" style="font-size:12px;color:var(--ok)"></span>
       </div>
     </div>
@@ -1495,8 +1506,30 @@ function isMedDoseChecked(checks,m,time){
 function renderMedPage(){
   const start=document.getElementById('med-start');
   if(start&&!start.value)start.value=todayStr;
+  renderMedScheduleTop();
   renderMedMatrix('med-matrix-body',{editable:true,checkable:false});
   renderMedCalendar();
+}
+
+function renderMedScheduleTop(){
+  const el=document.getElementById('med-schedule-top');
+  if(!el)return;
+  const meds=getMeds().filter(m=>m.active!==false&&isMedActiveOn(m,todayStr));
+  if(!meds.length){
+    el.innerHTML='<div class="quick-note">今日の服薬期間に入っている薬はありません。</div>';
+    return;
+  }
+  const c=today().c||{};
+  const html=Object.entries(MED_TIMES).map(([time,info])=>{
+    const items=meds.filter(m=>medTimes(m).includes(time));
+    return `<div class="med-schedule-col">
+      <div class="med-schedule-title">${info.label}</div>
+      <div class="med-schedule-list">
+        ${items.length?items.map(m=>renderMedPill(m,{checkable:true,time,checked:isMedDoseChecked(c,m,time)})).join(''):'<div class="med-empty">なし</div>'}
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div class="med-schedule-grid">${html}</div>`;
 }
 
 function renderTodayMeds(){
@@ -1553,6 +1586,7 @@ function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}=
   const period=getMedPeriodText(m);
   const doseLabel=time?MED_TIMES[time]?.label||time:medTimeLabel(m);
   const checkButton=checkable?`<button class="med-mini-btn" onclick="togMed('${escapeAttr(m.id)}','${escapeAttr(time)}')">${checked?'済':'飲んだ'}</button>`:'';
+  const editButton=editable?`<button class="med-mini-btn" onclick="editMedication('${escapeAttr(m.id)}')">編集</button>`:'';
   const deleteButton=editable?`<button class="med-mini-btn" onclick="deleteMedication('${escapeAttr(m.id)}')">削除</button>`:'';
   return `<div class="med-pill${checked?' checked':''}">
     <div>
@@ -1562,7 +1596,7 @@ function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}=
       <div class="med-period">${escapeHTML(period)}</div>
       <div class="tags" style="margin-top:6px"><span class="tag tag-${tag}">${escapeHTML(MED_CATS[m.category]?.label||'その他')}</span></div>
     </div>
-    <div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end">${checkButton}${deleteButton}</div>
+    <div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end">${checkButton}${editButton}${deleteButton}</div>
   </div>`;
 }
 
@@ -1579,18 +1613,65 @@ async function addMedication(){
   if(!name){if(msg)msg.textContent='薬名を入力してください';return}
   if(daysSupplyRaw && (!daysSupply || daysSupply<1)){if(msg)msg.textContent='処方日数は1以上で入力してください';return}
   const meds=getMeds();
-  meds.push({id:'m'+Date.now().toString(36),name,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true});
+  const editId=document.getElementById('med-edit-id')?.value||'';
+  const payload={name,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true};
+  if(editId){
+    const target=meds.find(m=>String(m.id)===String(editId));
+    if(target)Object.assign(target,payload);
+  }else{
+    meds.push({id:'m'+Date.now().toString(36),...payload});
+  }
   await persistGoals();
-  ['med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
-  if(msg){msg.textContent='薬を追加しました';setTimeout(()=>msg.textContent='',2500)}
+  resetMedicationForm();
+  if(msg){msg.textContent=editId?'薬を更新しました':'薬を追加しました';setTimeout(()=>msg.textContent='',2500)}
   renderMedPage();
   renderTodayMeds();
+}
+
+function editMedication(id){
+  const m=getMeds().find(x=>String(x.id)===String(id));
+  if(!m)return;
+  const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val??''};
+  set('med-edit-id',m.id);
+  set('med-name',m.name||'');
+  set('med-category',m.category||'other');
+  set('med-time',medTimes(m).join(','));
+  set('med-note',m.note||'');
+  set('med-start',m.startDate||todayStr);
+  set('med-days',m.daysSupply||'');
+  const btn=document.getElementById('med-submit-btn');
+  const cancel=document.getElementById('med-cancel-btn');
+  if(btn)btn.textContent='薬を更新';
+  if(cancel)cancel.style.display='inline-block';
+  document.getElementById('med-name')?.focus();
+}
+
+function resetMedicationForm(){
+  ['med-edit-id','med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  const start=document.getElementById('med-start');
+  if(start)start.value=todayStr;
+  const time=document.getElementById('med-time');
+  if(time)time.value='am';
+  const category=document.getElementById('med-category');
+  if(category)category.value='ldl';
+  const btn=document.getElementById('med-submit-btn');
+  const cancel=document.getElementById('med-cancel-btn');
+  if(btn)btn.textContent='薬を追加';
+  if(cancel)cancel.style.display='none';
+}
+
+function cancelMedicationEdit(){
+  resetMedicationForm();
+  const msg=document.getElementById('med-save-msg');
+  if(msg)msg.textContent='';
 }
 
 async function deleteMedication(id){
   if(!confirm('この薬を削除しますか？\n過去の服薬チェックは日次データに残ります。'))return;
   GOALS.meds=getMeds().filter(m=>String(m.id)!==String(id));
   await persistGoals();
+  const editId=document.getElementById('med-edit-id')?.value||'';
+  if(String(editId)===String(id))resetMedicationForm();
   renderMedPage();
   renderTodayMeds();
 }
@@ -1661,6 +1742,7 @@ async function togMed(id,time){
   delete c[medCheckId(id)];
   await saveDay(todayStr);
   renderTodayMeds();
+  renderMedScheduleTop();
 }
 
 // ========== RECORD ==========
