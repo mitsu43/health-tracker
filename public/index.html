@@ -493,14 +493,14 @@ code,pre,.mono{font-family:'DM Mono',monospace}
           <textarea id="med-barcode" rows="3" placeholder="複数QRは1行に1コードで保存します。カメラで読み取り、または手入力してください。"></textarea>
         </div>
         <div class="barcode-actions">
-          <button class="btn btn-primary" onclick="document.getElementById('barcode-image-file').click()">写真からまとめて読み取る</button>
-          <input type="file" id="barcode-image-file" accept="image/*" style="display:none" onchange="readBarcodeImage(event)">
-          <button class="btn btn-ghost" onclick="startBarcodeScan()">QRを1枚読み取る</button>
-          <button class="btn btn-ghost" onclick="stopBarcodeScan()">停止</button>
+          <button class="btn btn-primary" id="btn-photo-scan" onclick="document.getElementById('barcode-image-file').click()">📷 写真から読み取る（推奨）</button>
+          <input type="file" id="barcode-image-file" accept="image/*,.heic,.heif" style="display:none" onchange="readBarcodeImage(event)">
+          <button class="btn btn-ghost" id="btn-camera-scan" onclick="startBarcodeScan()">🎥 カメラで読み取る</button>
+          <button class="btn btn-ghost" id="btn-camera-stop" onclick="stopBarcodeScan()" style="display:none">■ 停止</button>
           <button class="btn btn-ghost" onclick="findMedicationByBarcode()">登録済み薬を検索</button>
           <button class="btn btn-ghost" onclick="clearBarcodeCodes()">読み取り結果をクリア</button>
-          <span id="barcode-msg" style="font-size:12px;color:var(--text2)"></span>
         </div>
+        <div id="barcode-msg" style="font-size:12px;margin-top:6px;line-height:1.6;white-space:pre-wrap"></div>
         <div id="barcode-count" class="barcode-count"></div>
         <div id="barcode-list" class="barcode-list"></div>
         <video id="barcode-video" class="barcode-video" playsinline muted></video>
@@ -1533,12 +1533,11 @@ function isMedDoseChecked(checks,m,time){
   return !!(checks[medDoseCheckId(m.id,time)] || checks[medCheckId(m.id)]);
 }
 
-function setBarcodeMsg(text,type=''){
-  const el=document.getElementById('barcode-msg');
-  if(el){
-    el.textContent=text||'';
-    el.style.color=type==='ok'?'var(--ok)':type==='danger'?'var(--danger)':'var(--text2)';
-  }
+function setBarcodeMsg(text, type=''){
+  const el = document.getElementById('barcode-msg');
+  if(!el) return;
+  el.textContent = text || '';
+  el.style.color = type==='ok' ? 'var(--ok)' : type==='danger' ? 'var(--danger)' : 'var(--text2)';
 }
 
 function normalizeBarcode(v){
@@ -1546,34 +1545,34 @@ function normalizeBarcode(v){
 }
 
 function parseBarcodeInput(){
-  const raw=document.getElementById('med-barcode')?.value||'';
+  const raw = document.getElementById('med-barcode')?.value || '';
   return [...new Set(raw.split(/\n+/).map(normalizeBarcode).filter(Boolean))];
 }
 
 function syncBarcodeInput(codes=barcodeCodes){
-  const unique=[...new Set((codes||[]).map(normalizeBarcode).filter(Boolean))];
-  barcodeCodes=unique;
-  const input=document.getElementById('med-barcode');
-  if(input)input.value=unique.join('\n');
+  const unique = [...new Set((codes||[]).map(normalizeBarcode).filter(Boolean))];
+  barcodeCodes = unique;
+  const input = document.getElementById('med-barcode');
+  if(input) input.value = unique.join('\n');
   renderBarcodeList();
 }
 
 function addBarcodeCode(raw){
-  const code=normalizeBarcode(raw);
-  if(!code)return false;
-  const before=barcodeCodes.length;
-  syncBarcodeInput([...barcodeCodes,code]);
-  return barcodeCodes.length>before;
+  const code = normalizeBarcode(raw);
+  if(!code) return false;
+  const before = barcodeCodes.length;
+  syncBarcodeInput([...barcodeCodes, code]);
+  return barcodeCodes.length > before;
 }
 
 function renderBarcodeList(){
-  const list=document.getElementById('barcode-list');
-  const count=document.getElementById('barcode-count');
-  if(count)count.textContent=barcodeCodes.length?`読み取り済み: ${barcodeCodes.length}件（複数QRはこのまま薬情報にまとめて保存されます）`:'';
-  if(!list)return;
-  list.innerHTML=barcodeCodes.map((code,i)=>`<div class="barcode-item">
-    <span>${i+1}. ${escapeHTML(code)}</span>
-    <button class="med-mini-btn" onclick="removeBarcodeCode(${i})">削除</button>
+  const count = document.getElementById('barcode-count');
+  const list  = document.getElementById('barcode-list');
+  if(count) count.textContent = barcodeCodes.length
+    ? `読み取り済み: ${barcodeCodes.length}件（複数QRはこのまま薬情報にまとめて保存されます）` : '';
+  if(list) list.innerHTML = barcodeCodes.map((code,i)=>`<div class="barcode-item">
+    <span class="barcode-code">${escapeHTML(code.slice(0,60))}${code.length>60?'…':''}</span>
+    <button class="barcode-delete" onclick="removeBarcodeCode(${i})">✕</button>
   </div>`).join('');
 }
 
@@ -1584,323 +1583,81 @@ function removeBarcodeCode(index){
 function clearBarcodeCodes(){
   syncBarcodeInput([]);
   setBarcodeMsg('');
+  document.getElementById('jahis-result-area')?.remove();
+  window._jahisDrugs = [];
 }
 
-function renderMedPage(){
-  const start=document.getElementById('med-start');
-  if(start&&!start.value)start.value=todayStr;
-  renderMedScheduleTop();
-  renderMedMatrix('med-matrix-body',{editable:true,checkable:false});
-  renderMedCalendar();
-}
-
-function renderMedScheduleTop(){
-  const el=document.getElementById('med-schedule-top');
-  if(!el)return;
-  const meds=getMeds().filter(m=>m.active!==false&&isMedActiveOn(m,todayStr));
-  if(!meds.length){
-    el.innerHTML='<div class="quick-note">今日の服薬期間に入っている薬はありません。</div>';
-    return;
-  }
-  const c=today().c||{};
-  const html=Object.entries(MED_TIMES).map(([time,info])=>{
-    const items=meds.filter(m=>medTimes(m).includes(time));
-    return `<div class="med-schedule-col">
-      <div class="med-schedule-title">${info.label}</div>
-      <div class="med-schedule-list">
-        ${items.length?items.map(m=>renderMedPill(m,{checkable:true,time,checked:isMedDoseChecked(c,m,time)})).join(''):'<div class="med-empty">なし</div>'}
-      </div>
-    </div>`;
-  }).join('');
-  el.innerHTML=`<div class="med-schedule-grid">${html}</div>`;
-}
-
-function renderTodayMeds(){
-  const el=document.getElementById('today-med-body');
-  if(!el)return;
-  const meds=getMeds().filter(m=>m.active!==false&&isMedActiveOn(m,todayStr));
-  if(!meds.length){
-    el.innerHTML=`<div class="card">
-      <div class="card-title">💊 今日の服薬</div>
-      <div class="quick-note">薬はまだ登録されていません。「お薬管理」から登録できます。</div>
-    </div>`;
-    return;
-  }
-  const c=today().c||{};
-  const doses=meds.flatMap(m=>medTimes(m).map(time=>({m,time})));
-  const done=doses.filter(d=>isMedDoseChecked(c,d.m,d.time)).length;
-  const pct=Math.round(done/Math.max(1,doses.length)*100);
-  el.innerHTML=`<div class="card">
-    <div class="card-title">💊 今日の服薬 ${done}/${doses.length} (${pct}%)</div>
-    <div class="quick-note" style="margin-bottom:10px">目的と朝昼晩で確認します。飲めたものをチェックしてください。</div>
-    <div id="today-med-matrix"></div>
-  </div>`;
-  renderMedMatrix('today-med-matrix',{editable:false,checkable:true});
-}
-
-function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
-  const el=document.getElementById(targetId);
-  if(!el)return;
-  const meds=getMeds().filter(m=>m.active!==false&&(checkable?isMedActiveOn(m,todayStr):true));
-  const catKeys=Object.keys(MED_CATS);
-  const timeKeys=Object.keys(MED_TIMES);
-  if(!meds.length){
-    el.innerHTML='<div class="quick-note">登録済みの薬はありません。</div>';
-    return;
-  }
-  const c=today().c||{};
-  let html='<div class="med-matrix-wrap"><div class="med-matrix">';
-  html+='<div class="med-cell med-head">目的</div>';
-  timeKeys.forEach(t=>html+=`<div class="med-cell med-head">${MED_TIMES[t].label}</div>`);
-  catKeys.forEach(cat=>{
-    html+=`<div class="med-cell med-row-head">${MED_CATS[cat].label}</div>`;
-    timeKeys.forEach(time=>{
-      const cellMeds=meds.filter(m=>m.category===cat&&medTimes(m).includes(time));
-      html+=`<div class="med-cell">${cellMeds.length?cellMeds.map(m=>renderMedPill(m,{editable,checkable,time,checked:isMedDoseChecked(c,m,time)})).join(''):'<div class="med-empty">登録なし</div>'}</div>`;
-    });
-  });
-  html+='</div></div>';
-  el.innerHTML=html;
-}
-
-function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}={}){
-  const tag=MED_CATS[m.category]?.tag||'bp';
-  const note=m.note?`<div class="med-note">${escapeHTML(m.note)}</div>`:'';
-  const period=getMedPeriodText(m);
-  const doseLabel=time?MED_TIMES[time]?.label||time:medTimeLabel(m);
-  const checkButton=checkable?`<button class="med-mini-btn" onclick="togMed('${escapeAttr(m.id)}','${escapeAttr(time)}')">${checked?'済':'飲んだ'}</button>`:'';
-  const editButton=editable?`<button class="med-mini-btn" onclick="editMedication('${escapeAttr(m.id)}')">編集</button>`:'';
-  const deleteButton=editable?`<button class="med-mini-btn" onclick="deleteMedication('${escapeAttr(m.id)}')">削除</button>`:'';
-  return `<div class="med-pill${checked?' checked':''}">
-    <div>
-      <div class="med-name">${escapeHTML(m.name||'名称未設定')}</div>
-      ${(m.barcodes?.length||m.barcode)?`<div class="med-note">コード: ${m.barcodes?.length?`${m.barcodes.length}件`:escapeHTML(m.barcode)}</div>`:''}
-      <div class="med-note">タイミング: ${escapeHTML(doseLabel)}</div>
-      ${note}
-      <div class="med-period">${escapeHTML(period)}</div>
-      <div class="tags" style="margin-top:6px"><span class="tag tag-${tag}">${escapeHTML(MED_CATS[m.category]?.label||'その他')}</span></div>
-    </div>
-    <div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end">${checkButton}${editButton}${deleteButton}</div>
-  </div>`;
-}
-
-async function addMedication(){
-  syncBarcodeInput(parseBarcodeInput());
-  const barcodes=[...barcodeCodes];
-  const barcode=barcodes[0]||'';
-  const name=document.getElementById('med-name')?.value.trim();
-  const category=document.getElementById('med-category')?.value||'other';
-  const timeValue=document.getElementById('med-time')?.value||'am';
-  const times=timeValue.split(',').filter(Boolean);
-  const note=document.getElementById('med-note')?.value.trim()||'';
-  const startDate=document.getElementById('med-start')?.value||'';
-  const daysSupplyRaw=document.getElementById('med-days')?.value||'';
-  const daysSupply=daysSupplyRaw?parseInt(daysSupplyRaw,10):null;
-  const msg=document.getElementById('med-save-msg');
-  if(!name){if(msg)msg.textContent='薬名を入力してください';return}
-  if(daysSupplyRaw && (!daysSupply || daysSupply<1)){if(msg)msg.textContent='処方日数は1以上で入力してください';return}
-  const meds=getMeds();
-  const editId=document.getElementById('med-edit-id')?.value||'';
-  const payload={name,barcode,barcodes,category,time:times[0]||'am',times,note,startDate,daysSupply,active:true};
-  if(editId){
-    const target=meds.find(m=>String(m.id)===String(editId));
-    if(target)Object.assign(target,payload);
-  }else{
-    meds.push({id:'m'+Date.now().toString(36),...payload});
-  }
-  await persistGoals();
-  resetMedicationForm();
-  if(msg){msg.textContent=editId?'薬を更新しました':'薬を追加しました';setTimeout(()=>msg.textContent='',2500)}
-  renderMedPage();
-  renderTodayMeds();
-}
-
-function editMedication(id){
-  const m=getMeds().find(x=>String(x.id)===String(id));
-  if(!m)return;
-  const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val??''};
-  set('med-edit-id',m.id);
-  syncBarcodeInput(m.barcodes?.length?m.barcodes:(m.barcode?[m.barcode]:[]));
-  set('med-name',m.name||'');
-  set('med-category',m.category||'other');
-  set('med-time',medTimes(m).join(','));
-  set('med-note',m.note||'');
-  set('med-start',m.startDate||todayStr);
-  set('med-days',m.daysSupply||'');
-  const btn=document.getElementById('med-submit-btn');
-  const cancel=document.getElementById('med-cancel-btn');
-  if(btn)btn.textContent='薬を更新';
-  if(cancel)cancel.style.display='inline-block';
-  document.getElementById('med-name')?.focus();
-}
-
-function resetMedicationForm(){
-  ['med-edit-id','med-barcode','med-name','med-note','med-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
-  barcodeCodes=[];
-  renderBarcodeList();
-  const start=document.getElementById('med-start');
-  if(start)start.value=todayStr;
-  const time=document.getElementById('med-time');
-  if(time)time.value='am';
-  const category=document.getElementById('med-category');
-  if(category)category.value='ldl';
-  const btn=document.getElementById('med-submit-btn');
-  const cancel=document.getElementById('med-cancel-btn');
-  if(btn)btn.textContent='薬を追加';
-  if(cancel)cancel.style.display='none';
-}
-
-function findMedicationByBarcode(){
-  syncBarcodeInput(parseBarcodeInput());
-  if(!barcodeCodes.length){setBarcodeMsg('バーコードを入力してください','danger');return}
-  const hit=getMeds().find(m=>{
-    const stored=m.barcodes?.length?m.barcodes:(m.barcode?[m.barcode]:[]);
-    return stored.some(code=>barcodeCodes.includes(normalizeBarcode(code)));
-  });
-  if(hit){
-    editMedication(hit.id);
-    setBarcodeMsg('登録済みの薬を表示しました','ok');
-  }else{
-    setBarcodeMsg('同じバーコードの登録はまだありません');
-  }
-}
-
+// ═══════════════════════════════════════════════════
+// 写真から読み取り（HEIC/JPEG/PNG 全対応）
+// iPhoneでの唯一の確実な方法
+// ═══════════════════════════════════════════════════
 async function readBarcodeImage(event){
-  const file=event.target.files?.[0];
-  event.target.value='';
-  if(!file)return;
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if(!file) return;
+  setBarcodeMsg('📷 読み取り中...', '');
+
+  let canvas;
   try{
-    stopBarcodeScan(false);
-    setBarcodeMsg('写真からQRを読み取っています...');
-    const image=await loadBarcodeImage(file);
-    const rawCodes=await detectCodesFromImage(image);
-    URL.revokeObjectURL(image.src);
-    if(!rawCodes.length){
-      setBarcodeMsg('QRを検出できませんでした。紙を横向きのまま全体撮影、またはQRを1つずつ大きく撮ってください。','danger');
-      return;
-    }
-    let added=0;
-    rawCodes.forEach(code=>{if(addBarcodeCode(code))added++});
-    if(added){
-      setBarcodeMsg(`読み取り完了: ${added}件追加、合計${barcodeCodes.length}件です。`,'ok');
-    }else{
-      setBarcodeMsg(`読み取り完了: すべて登録済みでした（合計${barcodeCodes.length}件）。`,'ok');
-    }
+    const bitmap = await createImageBitmap(file);
+    canvas = document.createElement('canvas');
+    canvas.width  = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext('2d', {willReadFrequently:true}).drawImage(bitmap, 0, 0);
+    bitmap.close();
   }catch(e){
-    setBarcodeMsg('写真から読み取れませんでした: '+(e.message||e),'danger');
+    setBarcodeMsg('❌ 画像を開けませんでした。\nJPEGで撮影し直すか、iPhoneの設定→カメラ→フォーマット→「互換性優先」に変更してください。', 'danger');
+    return;
   }
-}
 
-function loadBarcodeImage(file){
-  return new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.onload=()=>resolve(img);
-    img.onerror=()=>reject(new Error('画像を読み込めませんでした'));
-    img.src=URL.createObjectURL(file);
-  });
-}
+  const rawCodes = scanImageWithJsQR(canvas);
 
-async function detectCodesFromImage(source){
-  const found=[];
-  if('BarcodeDetector' in window){
-    try{
-      const formats=await BarcodeDetector.getSupportedFormats?.() || [];
-      const preferred=['qr_code','data_matrix','ean_13','ean_8','code_128','code_39','itf'].filter(f=>!formats.length||formats.includes(f));
-      const detector=new BarcodeDetector({formats:preferred});
-      const detected=await detector.detect(source);
-      detected.forEach(item=>found.push(item.rawValue));
-    }catch{}
+  if(!rawCodes.length){
+    setBarcodeMsg(
+      '❌ QRを検出できませんでした。\n\n【撮影のコツ】\n① 明細書を白い台の上に置き真上から撮影\n② QRが画面の60〜70%を占める大きさで\n③ 照明の反射がない場所で\n④ QRが複数ある場合は1枚ずつ撮影',
+      'danger'
+    );
+    return;
   }
-  if(window.jsQR){
-    scanImageWithJsQR(source).forEach(code=>found.push(code));
-  }
-  return [...new Set(found.map(normalizeBarcode).filter(Boolean))];
-}
 
-function getImageSize(source){
-  return {
-    width:source.naturalWidth||source.videoWidth||source.width,
-    height:source.naturalHeight||source.videoHeight||source.height
-  };
-}
-
-function scanImageWithJsQR(source){
-  const results=[];
-  const {width,height}=getImageSize(source);
-  const maxDim=2400;
-  const scale=Math.min(1,maxDim/Math.max(width,height));
-  const baseW=Math.max(1,Math.round(width*scale));
-  const baseH=Math.max(1,Math.round(height*scale));
-  const rotations=[0,90,180,270];
-  rotations.forEach(rot=>{
-    const canvas=document.createElement('canvas');
-    const ctx=canvas.getContext('2d',{willReadFrequently:true});
-    const swap=rot===90||rot===270;
-    canvas.width=swap?baseH:baseW;
-    canvas.height=swap?baseW:baseH;
-    ctx.save();
-    if(rot===90){ctx.translate(canvas.width,0);ctx.rotate(Math.PI/2)}
-    else if(rot===180){ctx.translate(canvas.width,canvas.height);ctx.rotate(Math.PI)}
-    else if(rot===270){ctx.translate(0,canvas.height);ctx.rotate(-Math.PI/2)}
-    ctx.drawImage(source,0,0,baseW,baseH);
-    ctx.restore();
-    scanCanvasTiles(canvas).forEach(code=>results.push(code));
-  });
-  return [...new Set(results.map(normalizeBarcode).filter(Boolean))];
-}
-
-function scanCanvasTiles(canvas){
-  const results=[];
-  const tiles=[
-    [0,0,1,1],
-    [0,0,1,0.55],[0,0.45,1,0.55],
-    [0,0,0.55,1],[0.45,0,0.55,1],
-    [0,0,0.6,0.6],[0.4,0,0.6,0.6],[0,0.4,0.6,0.6],[0.4,0.4,0.6,0.6]
-  ];
-  for(let y=0;y<4;y++){
-    for(let x=0;x<4;x++){
-      tiles.push([x*0.25,y*0.25,0.32,0.32]);
+  const parsed = parseJahisQR(rawCodes);
+  if(parsed && parsed.drugs.length){
+    showJahisParsedResult(parsed);
+  } else {
+    let added = 0;
+    rawCodes.forEach(code=>{ if(addBarcodeCode(code)) added++; });
+    if(added){
+      setBarcodeMsg(`✅ ${added}件を読み取りました。続けて別のQRがあれば再度「写真から読み取る」を押してください。\n全て読み取ったら薬名を確認して「薬を追加」を押してください。`, 'ok');
+    } else {
+      setBarcodeMsg('このQRはすでに読み取り済みです。', 'ok');
     }
   }
-  for(let y=0;y<3;y++){
-    for(let x=0;x<3;x++){
-      tiles.push([x*0.33,y*0.33,0.42,0.42]);
-    }
-  }
-  tiles.forEach(([rx,ry,rw,rh])=>{
-    const sx=Math.floor(canvas.width*rx), sy=Math.floor(canvas.height*ry);
-    const sw=Math.max(1,Math.floor(canvas.width*rw)), sh=Math.max(1,Math.floor(canvas.height*rh));
-    const tmp=document.createElement('canvas');
-    tmp.width=sw;tmp.height=sh;
-    const tctx=tmp.getContext('2d',{willReadFrequently:true});
-    tctx.drawImage(canvas,sx,sy,sw,sh,0,0,sw,sh);
-    const imageData=tctx.getImageData(0,0,sw,sh);
-    const code=jsQR(imageData.data,sw,sh,{inversionAttempts:'attemptBoth'});
-    if(code?.data)results.push(code.data);
-  });
-  return results;
 }
 
+// ═══════════════════════════════════════════════════
+// カメラ連続スキャン（Android Chrome等 BarcodeDetector対応環境のみ）
+// iPhoneのSafariでは動作しないため「写真から」を案内
+// ═══════════════════════════════════════════════════
 async function startBarcodeScan(){
+  if(!('BarcodeDetector' in window)){
+    setBarcodeMsg(
+      'ℹ️ このブラウザはカメラ連続読み取りに対応していません（iPhoneのSafariなど）。\n\n✅「📷 写真から読み取る」ボタンをお使いください。\n調剤明細書のQRを写真に撮って選択するだけで登録できます。',
+      'danger'
+    );
+    return;
+  }
+  if(!navigator.mediaDevices?.getUserMedia){
+    setBarcodeMsg('カメラを使えません。HTTPSページで開いてください。', 'danger');
+    return;
+  }
+  _stopScanInternal();
   const video = document.getElementById('barcode-video');
   if(!video) return;
-
-  if(!navigator.mediaDevices?.getUserMedia){
-    setBarcodeMsg('カメラを使えません。HTTPSページで開いてください。','danger');
-    return;
-  }
-
-  // 前回のスキャンを確実に終了してから再起動
-  barcodeScanning  = false;
-  barcodeDetecting = false;
-  if(barcodeScanTimer){ clearTimeout(barcodeScanTimer); barcodeScanTimer=null; }
-  if(barcodeStream){ barcodeStream.getTracks().forEach(t=>t.stop()); barcodeStream=null; }
-  video.pause(); video.srcObject=null;
-
-  // BarcodeDetector が使えない環境（iOS Safari等）はjsQRでフォールバック
-  const useBarcodeDetector = 'BarcodeDetector' in window;
-
   try{
+    const formats = await BarcodeDetector.getSupportedFormats?.() || [];
+    const preferred = ['qr_code','data_matrix','ean_13','ean_8','code_128','code_39','itf']
+      .filter(f => !formats.length || formats.includes(f));
+    const detector = new BarcodeDetector({formats: preferred});
     barcodeStream = await navigator.mediaDevices.getUserMedia({
       video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
       audio: false
@@ -1909,121 +1666,256 @@ async function startBarcodeScan(){
     video.style.display = 'block';
     await video.play();
     barcodeScanning = true;
-    setBarcodeMsg('読み取り中です。QRを1枚カメラに映してください。読めたら自動停止します。');
-
-    if(useBarcodeDetector){
-      const formats = await BarcodeDetector.getSupportedFormats?.() || [];
-      const preferred = ['ean_13','ean_8','code_128','code_39','itf','qr_code','data_matrix']
-        .filter(f => !formats.length || formats.includes(f));
-      const detector = new BarcodeDetector({formats:preferred});
-      runBarcodeScanLoop(detector, video, 300);
-    } else {
-      // iOS Safari: jsQRでビデオフレームをスキャン
-      if(!window.jsQR){
-        stopBarcodeScan(false);
-        setBarcodeMsg('このブラウザはカメラ読み取りに未対応です。「写真からまとめて読み取る」をお使いください。','danger');
-        return;
-      }
-      runJsQRVideoLoop(video, 400);
-    }
+    const btnStart = document.getElementById('btn-camera-scan');
+    const btnStop  = document.getElementById('btn-camera-stop');
+    if(btnStart) btnStart.style.display = 'none';
+    if(btnStop)  btnStop.style.display  = 'inline-block';
+    setBarcodeMsg('🎥 カメラ起動中。QRを枠内に映してください。検出すると自動停止します。');
+    _scanLoop(detector, video);
   }catch(e){
-    stopBarcodeScan(false);
+    _stopScanInternal();
     if(e.name==='NotAllowedError'){
-      setBarcodeMsg('カメラのアクセスが拒否されています。ブラウザの設定でカメラを許可してください。','danger');
-    }else{
-      setBarcodeMsg('カメラを開始できませんでした: '+(e.message||e),'danger');
+      setBarcodeMsg('❌ カメラのアクセスが拒否されています。ブラウザの設定でカメラを許可してください。', 'danger');
+    } else {
+      setBarcodeMsg('❌ カメラを開始できませんでした: '+(e.message||e), 'danger');
     }
   }
 }
 
-// iOS Safari向け: jsQRでビデオフレームをスキャンするループ
-function runJsQRVideoLoop(video, delay=400){
+function _scanLoop(detector, video){
   if(!barcodeScanning || !barcodeStream) return;
-  if(barcodeDetecting){ barcodeScanTimer=setTimeout(()=>runJsQRVideoLoop(video,delay),delay); return; }
-
-  barcodeScanTimer = setTimeout(()=>{
+  barcodeScanTimer = setTimeout(async ()=>{
     if(!barcodeScanning || !barcodeStream) return;
-    if(video.readyState < 2){ runJsQRVideoLoop(video,700); return; }
-
-    barcodeDetecting = true;
-    try{
-      const w = video.videoWidth, h = video.videoHeight;
-      if(!w || !h){ barcodeDetecting=false; runJsQRVideoLoop(video,400); return; }
-      const cv = document.createElement('canvas');
-      cv.width=w; cv.height=h;
-      cv.getContext('2d',{willReadFrequently:true}).drawImage(video,0,0,w,h);
-      const codes = scanImageWithJsQR(cv);
-      if(codes.length){
-        let added=0;
-        codes.forEach(c=>{ if(addBarcodeCode(c)) added++; });
-        barcodeDetecting = false;
-        barcodeScanning  = false;
-        stopBarcodeScan(false);
-        setBarcodeMsg(`✅ 読み取り完了: 合計${barcodeCodes.length}件。\n続けて読む場合は「QRを1枚読み取る」を再度押してください。`,'ok');
-        return;
+    if(video.readyState < 2){ _scanLoop(detector, video); return; }
+    let codes = [];
+    try{ codes = await detector.detect(video); }
+    catch(e){ if(barcodeScanning) _scanLoop(detector, video); return; }
+    if(codes && codes.length){
+      barcodeScanning = false;
+      _stopScanInternal();
+      const rawTexts = codes.map(c=>c.rawValue).filter(Boolean);
+      const parsed = parseJahisQR(rawTexts);
+      if(parsed && parsed.drugs.length){
+        showJahisParsedResult(parsed);
+      } else {
+        let added = 0;
+        rawTexts.forEach(t=>{ if(addBarcodeCode(t)) added++; });
+        setBarcodeMsg(added
+          ? `✅ 読み取り完了: ${added}件追加（合計${barcodeCodes.length}件）。続けて読む場合は再度「カメラで読み取る」を押してください。`
+          : 'このQRはすでに読み取り済みです。', 'ok');
       }
-    }catch(e){ console.warn('jsQR video scan:',e); }
-    barcodeDetecting = false;
-    runJsQRVideoLoop(video, delay);
-  }, delay);
-}
-
-function runBarcodeScanLoop(detector,video,delay=700){
-  // ガード: 停止済みなら即終了
-  if(!barcodeScanning || !barcodeStream) return;
-
-  barcodeScanTimer = setTimeout(async () => {
-    // タイマー発火時点で停止済みなら即終了（finallyでの再帰を防ぐ）
-    if(!barcodeScanning || !barcodeStream) return;
-    if(video.readyState < 2){ runBarcodeScanLoop(detector,video,700); return; }
-    if(barcodeDetecting){ runBarcodeScanLoop(detector,video,delay); return; }
-
-    barcodeDetecting = true;
-    let detected = [];
-    try{
-      detected = await detector.detect(video);
-    }catch(e){
-      // detect失敗（videoが無効等）→ 少し待って再試行
-      barcodeDetecting = false;
-      if(barcodeScanning) runBarcodeScanLoop(detector,video,1000);
       return;
     }
-
-    // QR検出成功
-    if(detected && detected.length){
-      let added = 0;
-      detected.forEach(item=>{ if(addBarcodeCode(item.rawValue)) added++; });
-      // 先にフラグを落としてからストリームを止める
-      barcodeDetecting = false;
-      barcodeScanning  = false;          // ← stopBarcodeScan前に落とすことで再帰を遮断
-      stopBarcodeScan(false);
-      if(added){
-        setBarcodeMsg(`✅ 読み取り完了: 合計${barcodeCodes.length}件。\n続けて読む場合は「QRを1枚読み取る」を再度押してください。`,'ok');
-      }else{
-        setBarcodeMsg(`読み取り完了: すでに登録済みのQRでした（合計${barcodeCodes.length}件）。`,'ok');
-      }
-      return; // ← finallyを使わないので再帰しない
-    }
-
-    // 未検出 → 次のループへ
-    barcodeDetecting = false;
-    runBarcodeScanLoop(detector,video,300);
-
-  }, delay);
+    _scanLoop(detector, video);
+  }, 300);
 }
 
-function stopBarcodeScan(showComplete=true){
-  // フラグを最初に落とす → runBarcodeScanLoop の先頭ガードが機能する
+function _stopScanInternal(){
   barcodeScanning  = false;
   barcodeDetecting = false;
-  if(barcodeScanTimer){ clearTimeout(barcodeScanTimer); barcodeScanTimer=null; }
-  if(barcodeStream){ barcodeStream.getTracks().forEach(t=>t.stop()); barcodeStream=null; }
-  const video=document.getElementById('barcode-video');
-  if(video){ video.pause(); video.srcObject=null; video.style.display='none'; }
-  if(showComplete){
-    setBarcodeMsg(barcodeCodes.length?`読み取り完了: 合計${barcodeCodes.length}件です。`:'読み取りを停止しました。','ok');
-  }
+  if(barcodeScanTimer){ clearTimeout(barcodeScanTimer); barcodeScanTimer = null; }
+  if(barcodeStream){ barcodeStream.getTracks().forEach(t=>t.stop()); barcodeStream = null; }
+  const video = document.getElementById('barcode-video');
+  if(video){ video.pause(); video.srcObject = null; video.style.display = 'none'; }
+  const btnStart = document.getElementById('btn-camera-scan');
+  const btnStop  = document.getElementById('btn-camera-stop');
+  if(btnStart) btnStart.style.display = 'inline-block';
+  if(btnStop)  btnStop.style.display  = 'none';
 }
+
+function stopBarcodeScan(showMsg=true){
+  _stopScanInternal();
+  if(showMsg) setBarcodeMsg(
+    barcodeCodes.length ? `停止しました（読み取り済み: ${barcodeCodes.length}件）。` : '停止しました。', 'ok'
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// jsQR スキャン（複数角度・タイル分割）
+// ═══════════════════════════════════════════════════
+function getImageSize(source){
+  return {
+    width:  source.naturalWidth  || source.videoWidth  || source.width  || 0,
+    height: source.naturalHeight || source.videoHeight || source.height || 0
+  };
+}
+
+function scanImageWithJsQR(source){
+  const results = [];
+  const {width, height} = getImageSize(source);
+  if(!width || !height) return results;
+  const maxDim = 2400;
+  const scale  = Math.min(1, maxDim / Math.max(width, height));
+  const baseW  = Math.max(1, Math.round(width  * scale));
+  const baseH  = Math.max(1, Math.round(height * scale));
+  for(const rot of [0,90,180,270]){
+    const cv  = document.createElement('canvas');
+    const ctx = cv.getContext('2d', {willReadFrequently:true});
+    const swap = rot===90||rot===270;
+    cv.width  = swap ? baseH : baseW;
+    cv.height = swap ? baseW : baseH;
+    ctx.save();
+    if(rot===90){ctx.translate(cv.width,0);ctx.rotate(Math.PI/2);}
+    else if(rot===180){ctx.translate(cv.width,cv.height);ctx.rotate(Math.PI);}
+    else if(rot===270){ctx.translate(0,cv.height);ctx.rotate(-Math.PI/2);}
+    ctx.drawImage(source, 0, 0, baseW, baseH);
+    ctx.restore();
+    scanCanvasTiles(cv).forEach(c=>results.push(c));
+  }
+  return [...new Set(results.map(normalizeBarcode).filter(Boolean))];
+}
+
+function scanCanvasTiles(canvas){
+  const results = [];
+  const tiles = [
+    [0,0,1,1],
+    [0,0,1,0.55],[0,0.45,1,0.55],
+    [0,0,0.55,1],[0.45,0,0.55,1],
+    [0,0,0.6,0.6],[0.4,0,0.6,0.6],[0,0.4,0.6,0.6],[0.4,0.4,0.6,0.6],
+    [0.2,0.2,0.6,0.6],
+  ];
+  for(let y=0;y<4;y++) for(let x=0;x<4;x++) tiles.push([x*0.25,y*0.25,0.32,0.32]);
+  for(let y=0;y<3;y++) for(let x=0;x<3;x++) tiles.push([x*0.33,y*0.33,0.42,0.42]);
+  for(const [rx,ry,rw,rh] of tiles){
+    const sx=Math.floor(canvas.width*rx),  sy=Math.floor(canvas.height*ry);
+    const sw=Math.max(1,Math.floor(canvas.width*rw)), sh=Math.max(1,Math.floor(canvas.height*rh));
+    const tmp=document.createElement('canvas'); tmp.width=sw; tmp.height=sh;
+    const tctx=tmp.getContext('2d',{willReadFrequently:true});
+    tctx.drawImage(canvas,sx,sy,sw,sh,0,0,sw,sh);
+    const imageData=tctx.getImageData(0,0,sw,sh);
+    const code=jsQR(imageData.data,sw,sh,{inversionAttempts:'attemptBoth'});
+    if(code?.data) results.push(code.data);
+  }
+  return results;
+}
+
+// ═══════════════════════════════════════════════════
+// JAHIS 電子版お薬手帳 QRパーサー（Ver.1.0〜2.5対応）
+// ═══════════════════════════════════════════════════
+function parseJahisQR(rawTexts){
+  const lines = rawTexts
+    .flatMap(t=>t.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n'))
+    .map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return null;
+  if(!/^JAHISTC0[12]/i.test(lines[0]) && !/^1,/.test(lines[0])) return null;
+
+  function parseCsv(line){
+    const r=[]; let cur='', q=false;
+    for(const c of line){
+      if(c==='"'){q=!q;continue}
+      if(c===','&&!q){r.push(cur.trim());cur='';continue}
+      cur+=c;
+    }
+    r.push(cur.trim()); return r;
+  }
+
+  const records={};
+  let dispensingDate='', pharmacyName='';
+  for(const line of lines){
+    if(/^JAHISTC/i.test(line)) continue;
+    const f=parseCsv(line); const no=parseInt(f[0],10);
+    if(isNaN(no)) continue;
+    if(!records[no]) records[no]=[];
+    records[no].push(f);
+    if(no===5&&f[1]){const d=f[1].replace(/\D/g,'');if(d.length===8)dispensingDate=`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;}
+    if(no===11&&f[3]) pharmacyName=f[3];
+  }
+
+  const usageByRP={};
+  for(const f of (records[301]||[])){
+    const rp=f[1],text=f[3]||'',timesPerDay=parseInt(f[6],10)||0,days=parseInt(f[7],10)||null;
+    const times=[];
+    if(/朝|起床|朝食/.test(text)) times.push('am');
+    if(/昼|昼食/.test(text))       times.push('pm');
+    if(/夕|夕食|夜/.test(text))    times.push('eve');
+    if(/就寝|寝る前/.test(text))   times.push('bed');
+    if(!times.length){
+      if(timesPerDay>=3) times.push('am','pm','eve');
+      else if(timesPerDay===2) times.push('am','eve');
+      else times.push('am');
+    }
+    usageByRP[rp]={times,days,usageText:text};
+  }
+
+  const drugs=[];
+  for(const f of (records[201]||[])){
+    const rp=f[1],name=f[3]||'',dose=f[4]||'',unit=f[5]||'';
+    if(!name) continue;
+    const usage=usageByRP[rp]||{times:['am'],days:null,usageText:''};
+    const note=[dose&&unit?`${dose}${unit}/回`:'',usage.usageText].filter(Boolean).join(' / ');
+    drugs.push({name,times:usage.times,days:usage.days,note,dispensingDate,pharmacyName});
+  }
+  return drugs.length?{drugs,dispensingDate,pharmacyName}:null;
+}
+
+function guessCategoryFromName(name){
+  const n=name.toLowerCase();
+  if(/スタチン|ロスバ|アトルバ|ピタ|フルバ|プラバ|シンバ|エゼチ/.test(n)) return 'ldl';
+  if(/ウリア|フェブ|アロプリ|トピロキ/.test(n)) return 'ua';
+  if(/グリコ|メトホ|インスリン|シタグリ|エンパグリ|ダパグリ|ピオグリ|ボグリ|アカルボ/.test(n)) return 'hba1c';
+  if(/アムロジ|ニフェジ|バルサルタン|エナラ|テルミ|カンデ|オルメ|ロサルタン|カルベジ|ビソプロ|フロセ/.test(n)) return 'bp';
+  return 'other';
+}
+
+function showJahisParsedResult(parsed){
+  const {drugs,dispensingDate,pharmacyName}=parsed;
+  let area=document.getElementById('jahis-result-area');
+  if(!area){
+    area=document.createElement('div');area.id='jahis-result-area';
+    area.style.cssText='margin-top:12px;padding:14px 16px;background:var(--ok-dim);border:1px solid rgba(42,122,75,0.2);border-radius:var(--radius)';
+    document.querySelector('.barcode-box')?.appendChild(area);
+  }
+  const catLabel={ldl:'LDL',ua:'尿酸',hba1c:'血糖',bp:'血圧',other:'その他'};
+  let html=`<div style="font-size:13px;font-weight:600;color:var(--ok);margin-bottom:6px">✅ JAHIS QR解析成功 — ${drugs.length}種類を検出</div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:10px">薬名をタップするとフォームに自動入力します。</div>
+  <div style="display:flex;flex-direction:column;gap:6px">`;
+  drugs.forEach((d,i)=>{
+    const tl=d.times.map(t=>({am:'朝',pm:'昼',eve:'夕',bed:'就寝前'}[t]||t)).join('・');
+    const cat=guessCategoryFromName(d.name);
+    html+=`<div onclick="fillFormFromJahis(${i})" style="cursor:pointer;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+      <div style="font-size:13px;font-weight:500">${escapeHTML(d.name)}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:3px">${tl}${d.days?' · '+d.days+'日分':''}
+        <span style="margin-left:6px;padding:1px 6px;border-radius:6px;background:var(--accent-dim);color:var(--accent);font-size:10px">${catLabel[cat]}</span>
+      </div></div>`;
+  });
+  html+='</div>';
+  if(drugs.length>1) html+=`<button onclick="fillAllFromJahis()" style="margin-top:10px;width:100%;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer">全${drugs.length}種類をまとめて登録</button>`;
+  area.innerHTML=html;
+  window._jahisDrugs=drugs;
+  setBarcodeMsg(`JAHIS QR解析完了: ${drugs.length}種類を検出しました。`,'ok');
+}
+
+function fillFormFromJahis(i){
+  const d=window._jahisDrugs?.[i];if(!d)return;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??''};
+  set('med-name',d.name);set('med-category',guessCategoryFromName(d.name));
+  set('med-time',d.times.join(','));set('med-note',d.note||'');
+  if(d.dispensingDate)set('med-start',d.dispensingDate);
+  if(d.days)set('med-days',d.days);
+  document.getElementById('med-name')?.focus();
+  setBarcodeMsg(`「${d.name}」を入力しました。確認して「薬を追加」を押してください。`,'ok');
+}
+
+async function fillAllFromJahis(){
+  const drugs=window._jahisDrugs||[];if(!drugs.length)return;
+  const meds=getMeds();let added=0;
+  for(const d of drugs){
+    if(!d.name.trim())continue;
+    meds.push({id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+      name:d.name,category:guessCategoryFromName(d.name),
+      time:d.times[0]||'am',times:d.times,
+      note:d.note||'',startDate:d.dispensingDate||todayStr,
+      daysSupply:d.days||null,barcode:'',barcodes:[],active:true});
+    added++;await new Promise(r=>setTimeout(r,5));
+  }
+  await persistGoals();
+  resetMedicationForm();
+  document.getElementById('jahis-result-area')?.remove();
+  window._jahisDrugs=[];
+  setBarcodeMsg(`✅ ${added}種類の薬を登録しました。`,'ok');
+  renderMedPage();renderTodayMeds();
+}
+
 
 function cancelMedicationEdit(){
   resetMedicationForm();
