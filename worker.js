@@ -8,6 +8,7 @@
  *   GET  /api/day/:date → 特定日のデータを返す
  *   POST /api/goals     → 目標値を保存
  *   POST /api/coach     → Geminiで伴走コメントを生成
+ *   POST /api/meal/analyze → 食事写真をGeminiで解析
  *   GET  /api/coach/logs → Gemini相談履歴を取得
  */
 
@@ -139,6 +140,23 @@ async function handleAPI(request, url, method, env) {
       return json({ ok: true, answer }, cors);
     }
 
+    // POST /api/meal/analyze — 食事写真の解析
+    if (url.pathname === "/api/meal/analyze" && method === "POST") {
+      if (!env.GEMINI_API_KEY) {
+        return json({ error: "GEMINI_API_KEY is not configured" }, cors, 500);
+      }
+      const body = await request.json();
+      const imageBase64 = String(body.imageBase64 || "");
+      const mimeType = String(body.mimeType || "image/jpeg");
+      const mealType = String(body.mealType || "").slice(0, 30);
+      const note = String(body.note || "").slice(0, 500);
+      if (!imageBase64) {
+        return json({ error: "image is required" }, cors, 400);
+      }
+      const analysis = await callGeminiMeal(env, { imageBase64, mimeType, mealType, note });
+      return json({ ok: true, analysis }, cors);
+    }
+
     // GET /api/coach/logs — 相談履歴を取得
     if (url.pathname === "/api/coach/logs" && method === "GET") {
       const rows = await env.DB.prepare(`
@@ -168,6 +186,82 @@ async function handleAPI(request, url, method, env) {
 
 function json(data, headers, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+async function callGeminiMeal(env, { imageBase64, mimeType, mealType, note }) {
+  const preferredModel = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const fallbackModels = [
+    preferredModel,
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+  ].filter((model, index, all) => model && all.indexOf(model) === index);
+  const prompt = [
+    "あなたは健康管理アプリの食事記録アシスタントです。",
+    "画像から食べたものを推定し、医療判断ではなく生活ログとして整理してください。",
+    "LDL、尿酸値、HbA1c、血圧、体重への影響を、過度に断定せず簡潔に評価してください。",
+    "必ずJSONだけで返してください。Markdownや説明文は禁止です。",
+    "形式:",
+    '{"summary":"短い食事名","items":["品目1","品目2"],"estimate":{"calories":"例 600-800kcal","carbs":"低/中/高","fat":"低/中/高","protein":"低/中/高","salt":"低/中/高"},"healthTags":["LDL注意","尿酸注意","HbA1c注意","血圧注意","体重注意"],"good":"良い点","caution":"注意点","nextAction":"次に足す/控えるなら"}',
+    "",
+    `食事タイミング: ${mealType || "未指定"}`,
+    `ユーザーメモ: ${note || "なし"}`,
+  ].join("\n");
+
+  let lastError = "";
+  for (const model of fallbackModels) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data: imageBase64 } },
+          ],
+        }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 900,
+        },
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim() || "{}";
+      return parseMealAnalysis(text);
+    }
+    const errText = await res.text();
+    lastError = `Gemini API error ${res.status} on ${model}: ${errText.slice(0, 300)}`;
+    if (![429, 503].includes(res.status)) throw new Error(lastError);
+  }
+  throw new Error(`${lastError}\n食事写真の解析に失敗しました。少し時間を置いて再試行してください。`);
+}
+
+function parseMealAnalysis(text) {
+  const raw = String(text || "").trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      summary: String(parsed.summary || "食事"),
+      items: Array.isArray(parsed.items) ? parsed.items.map(String).slice(0, 8) : [],
+      estimate: parsed.estimate || {},
+      healthTags: Array.isArray(parsed.healthTags) ? parsed.healthTags.map(String).slice(0, 6) : [],
+      good: String(parsed.good || ""),
+      caution: String(parsed.caution || ""),
+      nextAction: String(parsed.nextAction || ""),
+    };
+  } catch {
+    return {
+      summary: "食事写真",
+      items: [],
+      estimate: {},
+      healthTags: [],
+      good: "",
+      caution: raw.slice(0, 500),
+      nextAction: "",
+    };
+  }
 }
 
 async function callGemini(env, mode, question, context) {
