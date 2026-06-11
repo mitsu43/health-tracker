@@ -204,6 +204,18 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .barcode-list{display:flex;flex-direction:column;gap:5px;margin-top:8px}
 .barcode-item{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:11px;color:var(--text2);word-break:break-all}
 .barcode-count{font-size:11px;color:var(--text3);margin-top:6px}
+.meal-preview{width:100%;max-height:280px;object-fit:cover;border-radius:12px;border:1px solid var(--border);background:var(--bg3);display:none;margin-top:10px}
+.meal-log-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.meal-card{display:grid;grid-template-columns:96px 1fr;gap:12px;border:1px solid var(--border);background:var(--bg2);border-radius:12px;padding:10px}
+.meal-thumb{width:96px;height:96px;border-radius:10px;object-fit:cover;background:var(--bg3)}
+.meal-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.4}
+.meal-meta{font-size:11px;color:var(--text3);margin-top:2px}
+.meal-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.meal-tag{font-size:10px;padding:2px 7px;border-radius:999px;background:var(--accent-dim);color:var(--accent);font-weight:700}
+.meal-cal-cell{min-height:72px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:11px;color:var(--text2);line-height:1.35}
+.meal-cal-cell.has-meal{background:var(--ok-dim);border-color:rgba(42,122,75,0.22)}
+.meal-cal-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3)}
+.meal-cal-count{font-weight:700;color:var(--ok);margin-top:4px}
 
 /* CHARTS */
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -334,6 +346,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .med-calendar{min-width:680px}
   .med-calendar-wrap{overflow-x:auto}
   .med-schedule-grid{grid-template-columns:1fr}
+  .meal-log-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr 1fr}
   .card,.score-panel,.problem-card,.chart-card,.time-card{padding:16px;border-radius:12px;margin-bottom:12px}
   .card-title{font-size:12px;margin-bottom:12px}
@@ -391,6 +404,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="nav-section">入力・操作</div>
     <div class="nav-item active" onclick="sw('today')"><span class="nav-icon">✅</span><span>今日のノルマ</span></div>
     <div class="nav-item" onclick="sw('record')"><span class="nav-icon">📝</span><span>数値を記録</span></div>
+    <div class="nav-item" onclick="sw('meals')"><span class="nav-icon">🍽️</span><span>食事ログ</span></div>
     <div class="nav-item" onclick="sw('meds')"><span class="nav-icon">💊</span><span>お薬管理</span></div>
     <div class="nav-item" onclick="sw('coach')"><span class="nav-icon">💬</span><span>伴走相談</span></div>
     <div class="nav-item" onclick="sw('settings')"><span class="nav-icon">⚙️</span><span>設定・保存</span></div>
@@ -471,6 +485,47 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div id="office-plan-body"></div>
     <div id="today-med-body"></div>
     <div id="routine-body"></div>
+  </div>
+</div>
+
+<!-- MEALS -->
+<div id="page-meals" class="page">
+  <div class="topbar"><div class="page-title">🍽️ 食事ログ</div></div>
+  <div style="padding:0 32px">
+    <div class="card">
+      <div class="card-title">写真から食事を記録</div>
+      <div class="quick-note" style="margin-bottom:12px">食事写真を選ぶとAIが内容を推定します。結果は生活ログ用の目安で、栄養計算は概算です。</div>
+      <div class="form-grid">
+        <div class="form-group"><label>日付</label><input type="date" id="meal-date" onchange="renderMealDayList();renderMealCalendar()"></div>
+        <div class="form-group">
+          <label>タイミング</label>
+          <select id="meal-type" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px">
+            <option value="朝食">朝食</option>
+            <option value="昼食">昼食</option>
+            <option value="夕食">夕食</option>
+            <option value="間食">間食</option>
+            <option value="飲み物">飲み物</option>
+          </select>
+        </div>
+        <div class="form-group"><label>メモ</label><input type="text" id="meal-note" placeholder="例: 外食、少なめ、残した等"></div>
+        <div class="form-group"><label>写真</label><input type="file" id="meal-photo" accept="image/*" capture="environment" onchange="previewMealPhoto(event)"></div>
+      </div>
+      <img id="meal-preview" class="meal-preview" alt="食事写真プレビュー">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
+        <button class="btn btn-primary" onclick="analyzeMealPhoto()" id="meal-analyze-btn">AIで解析して保存</button>
+        <span id="meal-msg" style="font-size:12px;color:var(--text2)"></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">この日の食事ログ</div>
+      <div id="meal-day-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">食事カレンダー</div>
+      <div class="cal-header"><div class="cal-day-label">Sun</div><div class="cal-day-label">Mon</div><div class="cal-day-label">Tue</div><div class="cal-day-label">Wed</div><div class="cal-day-label">Thu</div><div class="cal-day-label">Fri</div><div class="cal-day-label">Sat</div></div>
+      <div class="cal-grid" id="meal-cal-grid"></div>
+    </div>
+    <div class="section-spacer"></div>
   </div>
 </div>
 
@@ -1121,7 +1176,7 @@ function daysBetweenInclusive(start,end){const a=parseDateLocal(start),b=parseDa
 
 // ========== NAV ==========
 function sw(name){
-  const names=['today','record','meds','coach','settings','analysis','impact','sim','trends','history'];
+  const names=['today','record','meals','meds','coach','settings','analysis','impact','sim','trends','history'];
   document.querySelectorAll('.nav-item').forEach((el,i)=>{
     el.classList.toggle('active',names[i]===name);
   });
@@ -1129,6 +1184,7 @@ function sw(name){
   document.getElementById('page-'+name).classList.add('active');
   if(name==='today'){renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderTodayMeds();renderRoutine()}
   if(name==='record'){renderRec()}
+  if(name==='meals'){renderMealsPage()}
   if(name==='meds'){renderMedPage()}
   if(name==='analysis'){renderAnalysis()}
   if(name==='impact'){renderImpact()}
@@ -1513,6 +1569,159 @@ async function togOffice(id){
   await saveDay(todayStr);
   renderOfficePlan();
   renderDayDiagnosis();
+}
+
+// ========== MEALS ==========
+let pendingMealImage = null;
+
+function getMeals(dateStr){
+  const d=getDay(dateStr);
+  if(!d.v)d.v={};
+  if(!Array.isArray(d.v.meals))d.v.meals=[];
+  return d.v.meals;
+}
+
+function renderMealsPage(){
+  const date=document.getElementById('meal-date');
+  if(date&&!date.value)date.value=todayStr;
+  renderMealDayList();
+  renderMealCalendar();
+}
+
+async function previewMealPhoto(event){
+  const file=event.target.files?.[0];
+  if(!file)return;
+  const data=await compressMealImage(file,900,0.78);
+  pendingMealImage=data;
+  const img=document.getElementById('meal-preview');
+  if(img){img.src=data.dataUrl;img.style.display='block'}
+}
+
+function compressMealImage(file,maxSize=900,quality=0.78){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const scale=Math.min(1,maxSize/Math.max(img.naturalWidth,img.naturalHeight));
+      const w=Math.max(1,Math.round(img.naturalWidth*scale));
+      const h=Math.max(1,Math.round(img.naturalHeight*scale));
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const dataUrl=canvas.toDataURL('image/jpeg',quality);
+      URL.revokeObjectURL(img.src);
+      resolve({dataUrl,mimeType:'image/jpeg',base64:dataUrl.split(',')[1]});
+    };
+    img.onerror=()=>reject(new Error('画像を読み込めませんでした'));
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+async function analyzeMealPhoto(){
+  const msg=document.getElementById('meal-msg');
+  const btn=document.getElementById('meal-analyze-btn');
+  const date=document.getElementById('meal-date')?.value||todayStr;
+  const mealType=document.getElementById('meal-type')?.value||'食事';
+  const note=document.getElementById('meal-note')?.value||'';
+  if(!pendingMealImage){if(msg)msg.textContent='写真を選んでください';return}
+  if(msg)msg.textContent='AIで解析しています...';
+  if(btn)btn.disabled=true;
+  try{
+    const res=await fetch('/api/meal/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        imageBase64:pendingMealImage.base64,
+        mimeType:pendingMealImage.mimeType,
+        mealType,
+        note
+      })
+    });
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
+    const meal={
+      id:'meal_'+Date.now().toString(36),
+      createdAt:new Date().toISOString(),
+      mealType,
+      note,
+      image:pendingMealImage.dataUrl,
+      analysis:data.analysis||{},
+    };
+    getMeals(date).push(meal);
+    await saveDay(date);
+    pendingMealImage=null;
+    const input=document.getElementById('meal-photo'); if(input)input.value='';
+    const preview=document.getElementById('meal-preview'); if(preview){preview.removeAttribute('src');preview.style.display='none'}
+    const noteEl=document.getElementById('meal-note'); if(noteEl)noteEl.value='';
+    if(msg)msg.textContent='保存しました';
+    renderMealDayList();
+    renderMealCalendar();
+  }catch(e){
+    if(msg)msg.textContent='解析できませんでした: '+(e.message||e);
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+
+function renderMealDayList(){
+  const el=document.getElementById('meal-day-list');
+  if(!el)return;
+  const date=document.getElementById('meal-date')?.value||todayStr;
+  const meals=getMeals(date);
+  if(!meals.length){
+    el.innerHTML='<div class="quick-note">この日の食事ログはまだありません。</div>';
+    return;
+  }
+  el.innerHTML=`<div class="meal-log-grid">${meals.map(m=>renderMealCard(m,date)).join('')}</div>`;
+}
+
+function renderMealCard(m,date){
+  const a=m.analysis||{};
+  const est=a.estimate||{};
+  const tags=(a.healthTags||[]).map(t=>`<span class="meal-tag">${escapeHTML(t)}</span>`).join('');
+  return `<div class="meal-card">
+    <img class="meal-thumb" src="${m.image||''}" alt="食事写真">
+    <div>
+      <div class="meal-title">${escapeHTML(a.summary||m.mealType||'食事')}</div>
+      <div class="meal-meta">${escapeHTML(m.mealType||'')} / ${escapeHTML((m.createdAt||'').slice(11,16))}</div>
+      <div class="meal-meta">${escapeHTML((a.items||[]).join('、'))}</div>
+      <div class="meal-meta">推定: ${escapeHTML(est.calories||'不明')} / 糖質 ${escapeHTML(est.carbs||'-')} / 脂質 ${escapeHTML(est.fat||'-')} / 塩分 ${escapeHTML(est.salt||'-')}</div>
+      <div class="meal-tags">${tags}</div>
+      ${a.caution?`<div class="meal-meta" style="color:var(--danger);margin-top:6px">${escapeHTML(a.caution)}</div>`:''}
+      ${a.nextAction?`<div class="meal-meta" style="color:var(--ok);margin-top:4px">${escapeHTML(a.nextAction)}</div>`:''}
+      <div style="margin-top:8px"><button class="med-mini-btn" onclick="deleteMeal('${escapeAttr(date)}','${escapeAttr(m.id)}')">削除</button></div>
+    </div>
+  </div>`;
+}
+
+async function deleteMeal(date,id){
+  if(!confirm('この食事ログを削除しますか？'))return;
+  const meals=getMeals(date);
+  const d=getDay(date);
+  d.v.meals=meals.filter(m=>String(m.id)!==String(id));
+  await saveDay(date);
+  renderMealDayList();
+  renderMealCalendar();
+}
+
+function renderMealCalendar(){
+  const grid=document.getElementById('meal-cal-grid');
+  if(!grid)return;
+  grid.innerHTML='';
+  const ref=parseDateLocal(document.getElementById('meal-date')?.value||todayStr)||new Date();
+  const start=new Date(ref.getFullYear(),ref.getMonth(),1);
+  const dow=start.getDay();
+  for(let i=0;i<dow;i++){const c=document.createElement('div');c.className='meal-cal-cell';grid.appendChild(c)}
+  const days=new Date(ref.getFullYear(),ref.getMonth()+1,0).getDate();
+  for(let day=1;day<=days;day++){
+    const d=new Date(ref.getFullYear(),ref.getMonth(),day);
+    const s=fmtD(d);
+    const meals=(DB[s]?.v?.meals)||[];
+    const c=document.createElement('div');
+    c.className='meal-cal-cell'+(meals.length?' has-meal':'');
+    c.onclick=()=>{const el=document.getElementById('meal-date');if(el)el.value=s;renderMealDayList();renderMealCalendar()};
+    c.innerHTML=`<div class="meal-cal-date">${day}${s===todayStr?' 今日':''}</div>${meals.length?`<div class="meal-cal-count">${meals.length}件</div><div>${escapeHTML(meals[0]?.analysis?.summary||meals[0]?.mealType||'食事')}</div>`:''}`;
+    grid.appendChild(c);
+  }
 }
 
 // ========== MEDICATIONS ==========
@@ -2573,6 +2782,14 @@ function buildCoachContext(){
   const medMissed=medDosesToday.filter(d=>!isMedDoseChecked(todayChecks,d.m,d.time)).map(d=>({name:d.m.name,category:MED_CATS[d.m.category]?.label||'その他',time:MED_TIMES[d.time]?.label||'',note:d.m.note||'',period:getMedPeriodText(d.m)}));
   const records=days.map(date=>({date, checks:DB[date]?.c||{}, vitals:DB[date]?.v||{}}))
     .filter(r=>Object.keys(r.checks).length||Object.keys(r.vitals).length);
+  const mealSummary=days.flatMap(date=>(DB[date]?.v?.meals||[]).map(m=>({
+    date,
+    mealType:m.mealType,
+    summary:m.analysis?.summary||'食事',
+    items:m.analysis?.items||[],
+    tags:m.analysis?.healthTags||[],
+    caution:m.analysis?.caution||''
+  }))).slice(-12);
   const missedTop=ROUTINES.map(r=>{
     const miss=days.filter(d=>!(DB[d]?.c||{})[r.id]).length / days.length;
     return {id:r.id,label:r.label,tags:r.tags,missRate:+miss.toFixed(2)};
@@ -2599,6 +2816,7 @@ function buildCoachContext(){
       missed: medMissed,
       completion: medDosesToday.length?Math.round(medDone.length/medDosesToday.length*100):0
     },
+    recentMeals: mealSummary,
     recentAverages: {
       steps: avgRecent('steps',days), sleepHours: avgRecent('slp',days),
       waterMl: avgRecent('water_ml',days), sbp: avgRecent('sbp',days), weight: avgRecent('wt',days)
