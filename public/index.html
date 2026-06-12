@@ -215,6 +215,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .meal-links{display:flex;flex-direction:column;gap:4px;margin-top:7px}
 .meal-link{font-size:11px;color:var(--accent);text-decoration:none;word-break:break-all}
 .meal-link:hover{text-decoration:underline}
+.meal-link-edit{margin-top:8px;border-top:1px solid var(--border);padding-top:8px}
+.meal-link-edit textarea{width:100%;min-height:58px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 9px;color:var(--text);font-size:11px;resize:vertical}
+.meal-link-edit-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.meal-link-msg{font-size:11px;color:var(--ok)}
 .meal-cal-cell{min-height:72px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:11px;color:var(--text2);line-height:1.35}
 .meal-cal-cell.has-meal{background:var(--ok-dim);border-color:rgba(42,122,75,0.22)}
 .meal-cal-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3)}
@@ -1001,7 +1005,7 @@ const TIME_BLOCKS = [
 ];
 
 const OFFICE_PLAN = [
-  {id:'office_bike_commute', time:'出社・帰宅', label:'電動自転車通勤 往復15.6km', target:'片道7.8kmだけでもOK / 往復で標準達成', why:'電動でも通勤に組み込める継続運動。脚を使い、朝と帰宅時に活動量を底上げできる。', tags:['ldl','hba1c','weight','bp']},
+  {id:'office_bike_commute', time:'出社・帰宅', label:'自力往復 15.6km', target:'片道7.8kmだけでもOK / 往復で標準達成', why:'通勤に組み込める継続運動。脚を使い、朝と帰宅時に活動量を底上げできる。', tags:['ldl','hba1c','weight','bp']},
   {id:'office_stairs', time:'午前', label:'エレベーターを避けて階段を合計5階分', target:'合計5階', why:'短時間で心拍を上げられる。脚の筋肉を使うため血糖消費に向く。', tags:['hba1c','weight']},
   {id:'office_lunch_walk', time:'昼休み', label:'昼食後に10分歩く', target:'10分', why:'食後血糖の上昇を抑えやすく、午後の眠気対策にもなる。', tags:['hba1c','bp']},
   {id:'office_hourly_stand', time:'勤務中', label:'1時間ごとに立つ/フロアを1周', target:'4回以上', why:'座りっぱなしを切るだけでも血糖・血圧への負担を下げやすい。', tags:['hba1c','bp']},
@@ -1703,7 +1707,10 @@ function renderMealCard(m,date){
   const a=m.analysis||{};
   const est=a.estimate||{};
   const tags=(a.healthTags||[]).map(t=>`<span class="meal-tag">${escapeHTML(t)}</span>`).join('');
-  const links=(m.recipeLinks||[]).map((url,i)=>`<a class="meal-link" href="${escapeAttr(url)}" target="_blank" rel="noopener">レシピ${i+1}: ${escapeHTML(shortMealLink(url))}</a>`).join('');
+  const recipeLinks=m.recipeLinks||[];
+  const links=recipeLinks.map((url,i)=>`<a class="meal-link" href="${escapeAttr(url)}" target="_blank" rel="noopener">レシピ${i+1}: ${escapeHTML(shortMealLink(url))}</a>`).join('');
+  const editId=`meal-links-edit-${String(m.id||'').replace(/[^a-zA-Z0-9_-]/g,'')}`;
+  const msgId=`meal-links-msg-${String(m.id||'').replace(/[^a-zA-Z0-9_-]/g,'')}`;
   return `<div class="meal-card">
     <img class="meal-thumb" src="${m.image||''}" alt="食事写真">
     <div>
@@ -1715,9 +1722,35 @@ function renderMealCard(m,date){
       ${links?`<div class="meal-links">${links}</div>`:''}
       ${a.caution?`<div class="meal-meta" style="color:var(--danger);margin-top:6px">${escapeHTML(a.caution)}</div>`:''}
       ${a.nextAction?`<div class="meal-meta" style="color:var(--ok);margin-top:4px">${escapeHTML(a.nextAction)}</div>`:''}
+      <div class="meal-link-edit">
+        <div class="meal-meta">レシピURLを追加・修正（1行に1URL）</div>
+        <textarea id="${escapeAttr(editId)}" placeholder="https://...">${escapeHTML(recipeLinks.join('\n'))}</textarea>
+        <div class="meal-link-edit-actions">
+          <button class="med-mini-btn" onclick="saveMealLinks('${escapeAttr(date)}','${escapeAttr(m.id)}','${escapeAttr(editId)}','${escapeAttr(msgId)}')">URLを保存</button>
+          <span class="meal-link-msg" id="${escapeAttr(msgId)}"></span>
+        </div>
+      </div>
       <div style="margin-top:8px"><button class="med-mini-btn" onclick="deleteMeal('${escapeAttr(date)}','${escapeAttr(m.id)}')">削除</button></div>
     </div>
   </div>`;
+}
+
+async function saveMealLinks(date,id,textareaId,msgId){
+  const d=getDay(date);
+  const meals=getMeals(date);
+  const meal=meals.find(m=>String(m.id)===String(id));
+  const msg=document.getElementById(msgId);
+  if(!meal){
+    if(msg)msg.textContent='対象のログが見つかりません';
+    return;
+  }
+  const raw=document.getElementById(textareaId)?.value||'';
+  meal.recipeLinks=parseMealLinks(raw);
+  d.v.meals=meals;
+  await saveDay(date);
+  if(msg)msg.textContent='保存しました';
+  renderMealDayList();
+  renderMealCalendar();
 }
 
 async function deleteMeal(date,id){
