@@ -80,7 +80,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .card-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px}
 
 /* KPI ROW */
-.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;position:relative;overflow:hidden;cursor:pointer;transition:box-shadow 0.12s;box-shadow:var(--shadow)}
 .kpi:hover{box-shadow:0 3px 8px rgba(0,0,0,0.12)}
 .kpi-label{font-size:10px;color:var(--text3);margin-bottom:4px;font-family:'DM Mono',monospace;letter-spacing:0.5px;text-transform:uppercase}
@@ -88,6 +88,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .kpi-unit{font-size:11px;font-weight:400;color:var(--text2);margin-left:2px}
 .kpi-goal{font-size:10px;color:var(--text3);margin-top:4px}
 .kpi-bar{position:absolute;bottom:0;left:0;right:0;height:3px}
+.kpi-overview{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:18px;font-size:13px;color:var(--text2);line-height:1.6;box-shadow:var(--shadow)}
+.kpi-note{font-size:11px;color:var(--text2);line-height:1.45;margin-top:6px}
 .kpi.ok  .kpi-val{color:var(--ok)}
 .kpi.ok  .kpi-bar{background:var(--ok)}
 .kpi.warn .kpi-val{color:var(--warn)}
@@ -306,6 +308,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .metric-score-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:10px}
 .metric-score-name{font-size:13px;font-weight:700;color:var(--text)}
 .metric-score-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:700}
+.metric-score-note{font-size:11px;color:var(--text3);line-height:1.45;margin:4px 0 5px}
 .priority-item{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}
 .priority-item:last-child{border-bottom:none}
 .priority-rank{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--accent)}
@@ -438,6 +441,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="progress" style="height:4px;margin-bottom:20px"><div class="progress-fill" id="main-prog" style="width:0%;background:var(--accent)"></div></div>
     <div id="alert-zone" style="margin-bottom:16px"></div>
     <div class="kpi-grid" id="kpi-row"></div>
+    <div id="kpi-overview" class="kpi-overview"></div>
     <div class="card">
       <div class="card-title">途中入力（今日の現在値）</div>
       <div class="quick-note" style="margin-bottom:10px">歩数や水分は、日の終わりを待たずに途中で何度でも更新できます。保存すると今日の記録に上書きされます。</div>
@@ -457,21 +461,6 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div id="daily-diagnosis" class="day-diagnosis"></div>
-    <div class="card">
-      <div class="card-title">+1,000歩シミュレーター</div>
-      <div class="quick-note" style="margin-bottom:10px">
-        1,000歩ずつ増やした場合の今日の到達率を見ます。効果は推定で、LDL・HbA1c・体重・血圧の改善行動として評価します。
-      </div>
-      <div class="slider-row" style="margin-bottom:12px">
-        <input type="range" min="1000" max="5000" step="1000" value="1000" id="step-plus-slider" oninput="renderStepIncrement()">
-        <div class="slider-val" id="step-plus-val">+1,000</div>
-      </div>
-      <div id="step-increment-result"></div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
-        <button class="btn btn-ghost" onclick="applyStepIncrement()">今日の歩数に加算</button>
-        <span id="step-plus-msg" class="quick-note"></span>
-      </div>
-    </div>
     <div class="coach-summary-grid">
       <div class="score-panel">
         <div class="score-head">
@@ -489,9 +478,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div class="time-grid" id="time-summary"></div>
+    <div id="routine-morning-body"></div>
     <div id="office-plan-body"></div>
+    <div id="routine-rest-body"></div>
     <div id="today-med-body"></div>
-    <div id="routine-body"></div>
   </div>
 </div>
 
@@ -694,7 +684,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       <div class="form-grid">
         <div class="form-group"><label>LDL (mg/dl)</label><input type="number" id="r-ldl" placeholder="179"></div>
         <div class="form-group"><label>尿酸値</label><input type="number" step="0.1" id="r-ua" placeholder="8.1"></div>
-        <div class="form-group"><label>HbA1c (%)</label><input type="number" step="0.1" id="r-hba1c" placeholder="6.1"></div>
+        <div class="form-group"><label>HbA1c（血糖） (%)</label><input type="number" step="0.1" id="r-hba1c" placeholder="6.1"></div>
         <div class="form-group"><label>空腹時血糖 (mg/dl)</label><input type="number" id="r-fg" placeholder="109"></div>
         <div class="form-group"><label>中性脂肪 (mg/dl)</label><input type="number" id="r-tg" placeholder="70"></div>
         <div class="form-group"><label>HDL (mg/dl)</label><input type="number" id="r-hdl" placeholder="50"></div>
@@ -890,7 +880,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <div class="form-group"><label>目標最低血圧</label><input type="number" id="g-dbp" placeholder="80"></div>
         <div class="form-group"><label>目標LDL</label><input type="number" id="g-ldl" placeholder="119"></div>
         <div class="form-group"><label>目標尿酸値</label><input type="number" step="0.1" id="g-ua" placeholder="7.0"></div>
-        <div class="form-group"><label>目標HbA1c</label><input type="number" step="0.1" id="g-hba1c" placeholder="5.5"></div>
+        <div class="form-group"><label>目標HbA1c（血糖）</label><input type="number" step="0.1" id="g-hba1c" placeholder="5.5"></div>
         <div class="form-group"><label>目標歩数/日</label><input type="number" id="g-steps" placeholder="10000"></div>
         <div class="form-group"><label>目標水分量 (ml)</label><input type="number" id="g-water_ml" placeholder="1500"></div>
         <div class="form-group"><label>目標睡眠時間 (h)</label><input type="number" step="0.25" id="g-slp" placeholder="7"></div>
@@ -1044,7 +1034,7 @@ const METRIC_INFO = {
   sbp:   {label:'最高血圧',unit:'mmHg',warn:130,  danger:140,  color:'#2563a8'},
   ldl:   {label:'LDL',   unit:'mg/dl',warn:140,  danger:160,  color:'#c96a2a'},
   ua:    {label:'尿酸値', unit:'',     warn:7.5,  danger:8.5,  color:'#b07820'},
-  hba1c: {label:'HbA1c', unit:'%',    warn:5.9,  danger:6.3,  color:'#c0392b'},
+  hba1c: {label:'HbA1c（血糖）', unit:'%',    warn:5.9,  danger:6.3,  color:'#c0392b'},
 };
 
 let DB = {};
@@ -1211,8 +1201,10 @@ function getLatestVal(key){
 }
 function renderKPIs(){
   const el=document.getElementById('kpi-row');
+  const overview=document.getElementById('kpi-overview');
   el.innerHTML='';
-  Object.entries(METRIC_INFO).forEach(([k,m])=>{
+  ['ldl','ua','hba1c'].forEach(k=>{
+    const m=METRIC_INFO[k];
     const val=getLatestVal(k);
     if(val==null)return;
     const goal=GOALS[k]||m.warn;
@@ -1220,20 +1212,64 @@ function renderKPIs(){
     const prev=getPrevVal(k);
     const delta=prev!=null?(val-prev).toFixed(1):null;
     const deltaColor=k==='steps'||k==='slp'?delta>0?'var(--ok)':'var(--danger)':delta>0?'var(--danger)':'var(--ok)';
+    const note=getMetricChangeNote(k);
     el.innerHTML+=`<div class="kpi ${cls}">
       <div class="kpi-label">${m.label}</div>
       <div class="kpi-val">${val}<span class="kpi-unit">${m.unit}</span></div>
       <div class="kpi-goal">目標: ${goal}${m.unit}</div>
       ${delta!=null?`<div class="kpi-delta" style="color:${deltaColor}">${delta>0?'+':''}${delta}</div>`:''}
+      <div class="kpi-note">${note}</div>
       <div class="kpi-bar"></div>
     </div>`;
   });
+  if(overview)overview.textContent=buildEffortOverview();
 }
 function getPrevVal(key){
   const days=Object.keys(DB).sort().reverse();
   let found=0;
   for(const d of days){if(DB[d].v&&DB[d].v[key]!=null){found++;if(found===2)return DB[d].v[key]}}
   return null;
+}
+
+function getFirstVal(key){
+  const days=Object.keys(DB).sort();
+  for(const d of days){if(DB[d].v&&DB[d].v[key]!=null)return DB[d].v[key]}
+  return BASELINE[key]||null;
+}
+
+function metricDirectionGood(key,diff){
+  return ['steps','slp','hdl'].includes(key)?diff>0:diff<0;
+}
+
+function getMetricChangeNote(key){
+  const val=getLatestVal(key);
+  const prev=getPrevVal(key);
+  const first=getFirstVal(key);
+  const unit=METRIC_INFO[key]?.unit||'';
+  if(val==null)return '現在値は未登録です';
+  if(prev!=null){
+    const diff=+(val-prev).toFixed(1);
+    if(Math.abs(diff)<0.05)return '前回から横ばいです';
+    const good=metricDirectionGood(key,diff);
+    return `前回より${Math.abs(diff)}${unit}${good?'改善':'悪化'}しています`;
+  }
+  if(first!=null&&first!==val){
+    const diff=+(val-first).toFixed(1);
+    if(Math.abs(diff)<0.05)return '初回から横ばいです';
+    const good=metricDirectionGood(key,diff);
+    return `初回より${Math.abs(diff)}${unit}${good?'改善':'悪化'}しています`;
+  }
+  return '比較データ待ちです';
+}
+
+function buildEffortOverview(){
+  const days=Object.keys(DB).sort().filter(d=>d<todayStr).slice(-7);
+  const total=days.length*ROUTINES.length;
+  const done=days.reduce((sum,d)=>sum+ROUTINES.filter(r=>DB[d]?.c?.[r.id]).length,0);
+  const rate=total?Math.round(done/total*100):0;
+  const notes=['ldl','ua','hba1c'].map(k=>`${METRIC_INFO[k].label}: ${getMetricChangeNote(k)}`);
+  if(!days.length)return `昨日までの取り組み: まだ集計期間が少ないため、${notes.join(' / ')}`;
+  return `昨日までの取り組み: 直近${days.length}日の実行率は${rate}%です。${notes.join(' / ')}`;
 }
 
 // ========== ALERTS ==========
@@ -1272,7 +1308,7 @@ function metricGoal(metric){
 }
 
 function metricLabel(metric){
-  return {ldl:'LDL',ua:'尿酸値',hba1c:'HbA1c',bp:'血圧',weight:'体重',sleep:'睡眠'}[metric] || metric;
+  return {ldl:'LDL',ua:'尿酸値',hba1c:'HbA1c（血糖）',bp:'血圧',weight:'体重',sleep:'睡眠'}[metric] || metric;
 }
 
 function metricColor(metric){
@@ -1294,7 +1330,7 @@ function metricUrgency(metric){
 
 function getMetricScores(){
   const c=today().c||{};
-  const metrics=['ldl','ua','hba1c','bp','weight'];
+  const metrics=['weight','bp','ldl','ua','hba1c'];
   return metrics.map(metric=>{
     const rel=ROUTINES.filter(r=>r.affects[metric]);
     const target=rel.reduce((s,r)=>s+(r.affects[metric]||0),0);
@@ -1332,6 +1368,7 @@ function renderDailyScore(){
         <div class="metric-score-name">${m.label}</div>
         <div class="metric-score-val" style="color:${col}">${m.actual}/${m.target}点 ${m.pct}%</div>
       </div>
+      <div class="metric-score-note">${getMetricChangeNote(metricDataKey(m.metric))}</div>
       <div class="progress"><div class="progress-fill" style="width:${m.pct}%;background:${col}"></div></div>
     </div>`;
   }).join('');
@@ -1509,8 +1546,12 @@ function renderRoutine(){
   document.getElementById('today-label').textContent=fmtJP(todayStr);
   document.getElementById('today-prog-label').textContent=`${done}/${ROUTINES.length}  ${pct}%`;
   const body=document.getElementById('routine-body');
-  body.innerHTML='';
-  Object.entries(CATS).forEach(([cat,ci])=>{
+  const morningBody=document.getElementById('routine-morning-body');
+  const restBody=document.getElementById('routine-rest-body');
+  if(body)body.innerHTML='';
+  if(morningBody)morningBody.innerHTML='';
+  if(restBody)restBody.innerHTML='';
+  const buildGroup=(cat,ci)=>{
     const items=ROUTINES.filter(r=>r.cat===cat);
     const doneN=items.filter(r=>c[r.id]).length;
     let html=`<div class="routine-group"><div class="group-header"><div class="group-label" style="color:${ci.color}">${ci.label}</div><div class="group-count">${doneN}/${items.length}</div></div>`;
@@ -1531,7 +1572,16 @@ function renderRoutine(){
       </div>`;
     });
     html+='</div>';
-    body.innerHTML+=html;
+    return html;
+  };
+  Object.entries(CATS).forEach(([cat,ci])=>{
+    const html=buildGroup(cat,ci);
+    if(morningBody&&restBody){
+      if(cat==='morning')morningBody.innerHTML+=html;
+      else restBody.innerHTML+=html;
+    }else if(body){
+      body.innerHTML+=html;
+    }
   });
 }
 
