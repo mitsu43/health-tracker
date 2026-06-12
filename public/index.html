@@ -80,7 +80,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .card-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px}
 
 /* KPI ROW */
-.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;position:relative;overflow:hidden;cursor:pointer;transition:box-shadow 0.12s;box-shadow:var(--shadow)}
 .kpi:hover{box-shadow:0 3px 8px rgba(0,0,0,0.12)}
 .kpi-label{font-size:10px;color:var(--text3);margin-bottom:4px;font-family:'DM Mono',monospace;letter-spacing:0.5px;text-transform:uppercase}
@@ -88,7 +88,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .kpi-unit{font-size:11px;font-weight:400;color:var(--text2);margin-left:2px}
 .kpi-goal{font-size:10px;color:var(--text3);margin-top:4px}
 .kpi-bar{position:absolute;bottom:0;left:0;right:0;height:3px}
-.kpi-overview{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:18px;font-size:13px;color:var(--text2);line-height:1.6;box-shadow:var(--shadow)}
+.kpi-overview{display:none}
 .kpi-note{font-size:11px;color:var(--text2);line-height:1.45;margin-top:6px}
 .kpi.ok  .kpi-val{color:var(--ok)}
 .kpi.ok  .kpi-bar{background:var(--ok)}
@@ -99,7 +99,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .kpi-delta{font-size:10px;margin-top:2px;font-family:'DM Mono',monospace}
 
 /* ALERTS */
-.alert-box{background:var(--danger-dim);border:1px solid rgba(192,57,43,0.2);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start}
+.alert-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.alert-box{background:var(--danger-dim);border:1px solid rgba(192,57,43,0.2);border-radius:var(--radius);padding:12px 16px;margin-bottom:0;display:flex;gap:10px;align-items:flex-start}
 .alert-box.warn{background:var(--warn-dim);border-color:rgba(176,120,32,0.2)}
 .alert-box.info{background:var(--blue-dim);border-color:rgba(37,99,168,0.2)}
 .alert-icon{font-size:16px;flex-shrink:0;margin-top:1px}
@@ -348,7 +349,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .kpi-val{font-size:22px}
   .prog-summary{grid-template-columns:1fr}
   .chart-grid,.two-col{grid-template-columns:1fr}
-  .coach-summary-grid,.time-grid,.quick-grid{grid-template-columns:1fr}
+  .coach-summary-grid,.time-grid,.quick-grid,.alert-grid{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
   .coach-log-filter{grid-template-columns:1fr}
   .med-matrix{min-width:680px}
@@ -384,6 +385,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 
 @media(max-width:520px){
   .kpi-grid{grid-template-columns:1fr}
+  .alert-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr}
   .quick-grid{grid-template-columns:1fr}
   .score-head{align-items:flex-start;gap:6px;flex-direction:column}
@@ -441,7 +443,6 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="progress" style="height:4px;margin-bottom:20px"><div class="progress-fill" id="main-prog" style="width:0%;background:var(--accent)"></div></div>
     <div id="alert-zone" style="margin-bottom:16px"></div>
     <div class="kpi-grid" id="kpi-row"></div>
-    <div id="kpi-overview" class="kpi-overview"></div>
     <div class="card">
       <div class="card-title">途中入力（今日の現在値）</div>
       <div class="quick-note" style="margin-bottom:10px">歩数や水分は、日の終わりを待たずに途中で何度でも更新できます。保存すると今日の記録に上書きされます。</div>
@@ -1201,10 +1202,8 @@ function getLatestVal(key){
 }
 function renderKPIs(){
   const el=document.getElementById('kpi-row');
-  const overview=document.getElementById('kpi-overview');
   el.innerHTML='';
-  ['ldl','ua','hba1c'].forEach(k=>{
-    const m=METRIC_INFO[k];
+  Object.entries(METRIC_INFO).forEach(([k,m])=>{
     const val=getLatestVal(k);
     if(val==null)return;
     const goal=GOALS[k]||m.warn;
@@ -1212,7 +1211,7 @@ function renderKPIs(){
     const prev=getPrevVal(k);
     const delta=prev!=null?(val-prev).toFixed(1):null;
     const deltaColor=k==='steps'||k==='slp'?delta>0?'var(--ok)':'var(--danger)':delta>0?'var(--danger)':'var(--ok)';
-    const note=getMetricChangeNote(k);
+    const note=getMetricDeltaDetail(k,val,goal,prev);
     el.innerHTML+=`<div class="kpi ${cls}">
       <div class="kpi-label">${m.label}</div>
       <div class="kpi-val">${val}<span class="kpi-unit">${m.unit}</span></div>
@@ -1222,7 +1221,6 @@ function renderKPIs(){
       <div class="kpi-bar"></div>
     </div>`;
   });
-  if(overview)overview.textContent=buildEffortOverview();
 }
 function getPrevVal(key){
   const days=Object.keys(DB).sort().reverse();
@@ -1246,12 +1244,13 @@ function getMetricChangeNote(key){
   const prev=getPrevVal(key);
   const first=getFirstVal(key);
   const unit=METRIC_INFO[key]?.unit||'';
+  const label=isBloodMetric(key)?'前回検査値':key==='wt'||key==='sbp'?'前回登録値':'前回値';
   if(val==null)return '現在値は未登録です';
   if(prev!=null){
     const diff=+(val-prev).toFixed(1);
-    if(Math.abs(diff)<0.05)return '前回から横ばいです';
+    if(Math.abs(diff)<0.05)return `${label}から横ばいです`;
     const good=metricDirectionGood(key,diff);
-    return `前回より${Math.abs(diff)}${unit}${good?'改善':'悪化'}しています`;
+    return `${label}より${Math.abs(diff)}${unit}${good?'改善':'悪化'}しています`;
   }
   if(first!=null&&first!==val){
     const diff=+(val-first).toFixed(1);
@@ -1260,6 +1259,27 @@ function getMetricChangeNote(key){
     return `初回より${Math.abs(diff)}${unit}${good?'改善':'悪化'}しています`;
   }
   return '比較データ待ちです';
+}
+
+function isBloodMetric(key){
+  return ['ldl','ua','hba1c','fg','tg','hdl'].includes(key);
+}
+
+function getMetricDeltaDetail(key,val,goal,prev){
+  const unit=METRIC_INFO[key]?.unit||'';
+  const lowerIsBetter=!['steps','slp','hdl'].includes(key);
+  const compareLabel=isBloodMetric(key)?'前回検査値':key==='wt'||key==='sbp'?'前回登録値':'前回値';
+  const goalDiff=+(val-goal).toFixed(1);
+  const goalText=Math.abs(goalDiff)<0.05
+    ? '目標ちょうどです'
+    : lowerIsBetter
+      ? (goalDiff>0?`目標まであと${Math.abs(goalDiff)}${unit}下げたいです`:`目標より${Math.abs(goalDiff)}${unit}良い状態です`)
+      : (goalDiff<0?`目標まであと${Math.abs(goalDiff)}${unit}増やしたいです`:`目標より${Math.abs(goalDiff)}${unit}良い状態です`);
+  if(prev==null)return `${compareLabel}との比較はまだありません。${goalText}`;
+  const diff=+(val-prev).toFixed(1);
+  if(Math.abs(diff)<0.05)return `${compareLabel}比は横ばいです。${goalText}`;
+  const good=metricDirectionGood(key,diff);
+  return `${compareLabel}比 ${diff>0?'+':''}${diff}${unit}（${good?'改善':'悪化'}）。${goalText}`;
 }
 
 function buildEffortOverview(){
@@ -1276,20 +1296,21 @@ function buildEffortOverview(){
 function renderAlerts(){
   const el=document.getElementById('alert-zone');
   el.innerHTML='';
+  el.className='alert-grid';
   const alerts=[];
   const ldl=getLatestVal('ldl');
   if(ldl&&ldl>119) alerts.push({type:'danger',icon:'🚨',title:`LDL ${ldl} mg/dl — 基準値119を大幅超過`,desc:'揚げ物ゼロ・青魚・海藻・1万歩の4習慣が最重要。毎日実行で3ヶ月後に改善が見込める。'});
   const ua=getLatestVal('ua');
   if(ua&&ua>7) alerts.push({type:'danger',icon:'⚠️',title:`尿酸値 ${ua} — 基準値7.0超過 (痛風リスク)`,desc:'水1.5L・アルコールなし・朝の水1杯の3習慣を最優先に。今日から即効性あり。'});
-  const hba1c=getLatestVal('hba1c');
-  if(hba1c&&hba1c>5.5) alerts.push({type:'warn',icon:'📊',title:`HbA1c ${hba1c}% — 基準値5.5超過`,desc:'ベジファースト・間食なし・1万歩・20時以降絶食の4習慣が血糖値を直接改善する。'});
-  const sbp=getLatestVal('sbp');
-  if(sbp&&sbp>130) alerts.push({type:'warn',icon:'💓',title:`最高血圧 ${sbp} mmHg — 正常高値`,desc:'水分補給・減塩・1万歩・7時間睡眠が血圧改善に有効。'});
   const c=today().c||{};
   const done=ROUTINES.filter(r=>c[r.id]).length;
   const pct=Math.round(done/ROUTINES.length*100);
   if(pct<50&&Object.keys(c).length>0) alerts.push({type:'warn',icon:'📋',title:`今日の達成率 ${pct}% — 目標の半分未満`,desc:'このペースが続くと検査値が悪化します。特に尿酸値とHbA1cは習慣の直接影響を受けます。'});
-  alerts.forEach(a=>{
+  const hba1c=getLatestVal('hba1c');
+  if(hba1c&&hba1c>5.5) alerts.push({type:'warn',icon:'📊',title:`HbA1c ${hba1c}% — 基準値5.5超過`,desc:'ベジファースト・間食なし・1万歩・20時以降絶食の4習慣が血糖値を直接改善する。'});
+  const sbp=getLatestVal('sbp');
+  if(sbp&&sbp>130) alerts.push({type:'warn',icon:'💓',title:`最高血圧 ${sbp} mmHg — 正常高値`,desc:'水分補給・減塩・1万歩・7時間睡眠が血圧改善に有効。'});
+  alerts.slice(0,3).forEach(a=>{
     el.innerHTML+=`<div class="alert-box ${a.type}">
       <div class="alert-icon">${a.icon}</div>
       <div class="alert-body"><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
