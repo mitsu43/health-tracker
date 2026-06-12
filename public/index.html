@@ -212,6 +212,9 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .meal-meta{font-size:11px;color:var(--text3);margin-top:2px}
 .meal-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .meal-tag{font-size:10px;padding:2px 7px;border-radius:999px;background:var(--accent-dim);color:var(--accent);font-weight:700}
+.meal-links{display:flex;flex-direction:column;gap:4px;margin-top:7px}
+.meal-link{font-size:11px;color:var(--accent);text-decoration:none;word-break:break-all}
+.meal-link:hover{text-decoration:underline}
 .meal-cal-cell{min-height:72px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:11px;color:var(--text2);line-height:1.35}
 .meal-cal-cell.has-meal{background:var(--ok-dim);border-color:rgba(42,122,75,0.22)}
 .meal-cal-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3)}
@@ -508,6 +511,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
           </select>
         </div>
         <div class="form-group"><label>メモ</label><input type="text" id="meal-note" placeholder="例: 外食、少なめ、残した等"></div>
+        <div class="form-group"><label>レシピURL（複数可）</label><textarea id="meal-links" rows="3" placeholder="1行に1URLで入力できます。例: https://..."></textarea></div>
         <div class="form-group"><label>写真</label><input type="file" id="meal-photo" accept="image/*" capture="environment" onchange="previewMealPhoto(event)"></div>
       </div>
       <img id="meal-preview" class="meal-preview" alt="食事写真プレビュー">
@@ -1616,12 +1620,31 @@ function compressMealImage(file,maxSize=900,quality=0.78){
   });
 }
 
+function parseMealLinks(raw){
+  return [...new Set(String(raw||'')
+    .split(/[\s,]+/)
+    .map(s=>s.trim())
+    .filter(s=>/^https?:\/\//i.test(s))
+  )].slice(0,10);
+}
+
+function shortMealLink(url){
+  try{
+    const u=new URL(url);
+    const path=u.pathname==='/'?'':u.pathname.replace(/\/$/,'').slice(0,28);
+    return u.hostname.replace(/^www\./,'')+path;
+  }catch(_){
+    return url;
+  }
+}
+
 async function analyzeMealPhoto(){
   const msg=document.getElementById('meal-msg');
   const btn=document.getElementById('meal-analyze-btn');
   const date=document.getElementById('meal-date')?.value||todayStr;
   const mealType=document.getElementById('meal-type')?.value||'食事';
   const note=document.getElementById('meal-note')?.value||'';
+  const recipeLinks=parseMealLinks(document.getElementById('meal-links')?.value||'');
   if(!pendingMealImage){if(msg)msg.textContent='写真を選んでください';return}
   if(msg)msg.textContent='AIで解析しています...';
   if(btn)btn.disabled=true;
@@ -1643,6 +1666,7 @@ async function analyzeMealPhoto(){
       createdAt:new Date().toISOString(),
       mealType,
       note,
+      recipeLinks,
       image:pendingMealImage.dataUrl,
       analysis:data.analysis||{},
     };
@@ -1652,6 +1676,7 @@ async function analyzeMealPhoto(){
     const input=document.getElementById('meal-photo'); if(input)input.value='';
     const preview=document.getElementById('meal-preview'); if(preview){preview.removeAttribute('src');preview.style.display='none'}
     const noteEl=document.getElementById('meal-note'); if(noteEl)noteEl.value='';
+    const linksEl=document.getElementById('meal-links'); if(linksEl)linksEl.value='';
     if(msg)msg.textContent='保存しました';
     renderMealDayList();
     renderMealCalendar();
@@ -1678,6 +1703,7 @@ function renderMealCard(m,date){
   const a=m.analysis||{};
   const est=a.estimate||{};
   const tags=(a.healthTags||[]).map(t=>`<span class="meal-tag">${escapeHTML(t)}</span>`).join('');
+  const links=(m.recipeLinks||[]).map((url,i)=>`<a class="meal-link" href="${escapeAttr(url)}" target="_blank" rel="noopener">レシピ${i+1}: ${escapeHTML(shortMealLink(url))}</a>`).join('');
   return `<div class="meal-card">
     <img class="meal-thumb" src="${m.image||''}" alt="食事写真">
     <div>
@@ -1686,6 +1712,7 @@ function renderMealCard(m,date){
       <div class="meal-meta">${escapeHTML((a.items||[]).join('、'))}</div>
       <div class="meal-meta">推定: ${escapeHTML(est.calories||'不明')} / 糖質 ${escapeHTML(est.carbs||'-')} / 脂質 ${escapeHTML(est.fat||'-')} / 塩分 ${escapeHTML(est.salt||'-')}</div>
       <div class="meal-tags">${tags}</div>
+      ${links?`<div class="meal-links">${links}</div>`:''}
       ${a.caution?`<div class="meal-meta" style="color:var(--danger);margin-top:6px">${escapeHTML(a.caution)}</div>`:''}
       ${a.nextAction?`<div class="meal-meta" style="color:var(--ok);margin-top:4px">${escapeHTML(a.nextAction)}</div>`:''}
       <div style="margin-top:8px"><button class="med-mini-btn" onclick="deleteMeal('${escapeAttr(date)}','${escapeAttr(m.id)}')">削除</button></div>
@@ -2788,7 +2815,8 @@ function buildCoachContext(){
     summary:m.analysis?.summary||'食事',
     items:m.analysis?.items||[],
     tags:m.analysis?.healthTags||[],
-    caution:m.analysis?.caution||''
+    caution:m.analysis?.caution||'',
+    recipeLinks:m.recipeLinks||[]
   }))).slice(-12);
   const missedTop=ROUTINES.map(r=>{
     const miss=days.filter(d=>!(DB[d]?.c||{})[r.id]).length / days.length;
