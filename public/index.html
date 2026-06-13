@@ -443,24 +443,6 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="progress" style="height:4px;margin-bottom:20px"><div class="progress-fill" id="main-prog" style="width:0%;background:var(--accent)"></div></div>
     <div id="alert-zone" style="margin-bottom:16px"></div>
     <div class="kpi-grid" id="kpi-row"></div>
-    <div class="card">
-      <div class="card-title">途中入力（今日の現在値）</div>
-      <div class="quick-note" style="margin-bottom:10px">歩数や水分は、日の終わりを待たずに途中で何度でも更新できます。保存すると今日の記録に上書きされます。</div>
-      <div class="quick-grid">
-        <div class="form-group"><label>現在の歩数</label><input type="number" id="q-steps" placeholder="例 4500"></div>
-        <div class="form-group"><label>水分量 (ml)</label><input type="number" id="q-water_ml" placeholder="例 900"></div>
-        <div class="form-group"><label>体重 (kg)</label><input type="number" step="0.1" id="q-wt" placeholder="例 88.5"></div>
-        <div class="form-group"><label>睡眠時間 (h)</label><input type="number" step="0.25" id="q-slp" placeholder="例 6.5"></div>
-        <div class="form-group"><label>最高血圧</label><input type="number" id="q-sbp" placeholder="例 128"></div>
-        <div class="form-group"><label>最低血圧</label><input type="number" id="q-dbp" placeholder="例 82"></div>
-        <div class="form-group"><label>腹囲 (cm)</label><input type="number" step="0.1" id="q-waist" placeholder="例 95.0"></div>
-        <div class="form-group"><label>体脂肪率 (%)</label><input type="number" step="0.1" id="q-bf" placeholder="例 27.0"></div>
-      </div>
-      <div class="quick-actions">
-        <button class="btn btn-primary" onclick="saveQuickVitals()">途中経過を保存</button>
-        <span id="quick-save-msg" class="quick-note"></span>
-      </div>
-    </div>
     <div id="daily-diagnosis" class="day-diagnosis"></div>
     <div class="coach-summary-grid">
       <div class="score-panel">
