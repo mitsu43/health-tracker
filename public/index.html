@@ -738,7 +738,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>相談内容</label>
-          <textarea id="coach-question" class="coach-question" placeholder="例: 今日は疲れていて全部は無理です。血圧と尿酸値を悪化させないために、最低限なにをすればいいですか？"></textarea>
+          <textarea id="coach-question" class="coach-question" onkeydown="handleCoachEnter(event)" placeholder="例: 今日は疲れていて全部は無理です。血圧と尿酸値を悪化させないために、最低限なにをすればいいですか？"></textarea>
+          <div class="quick-note" style="margin-top:6px">Enterで相談します。改行はShift+Enterです。</div>
         </div>
         <div class="coach-chip-row">
           <button class="coach-chip" onclick="setCoachPrompt('今日は疲れていて全部は無理です。最低限やることと、さぼっていいことを教えてください。')">今日は最低限</button>
@@ -2820,6 +2821,14 @@ function renderSim(){
 function setCoachPrompt(text){
   const el=document.getElementById('coach-question');
   if(el)el.value=text;
+}
+
+function handleCoachEnter(event){
+  if(event.key!=='Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing)return;
+  event.preventDefault();
+  const btn=document.getElementById('coach-btn');
+  if(btn?.disabled)return;
+  askCoach('today');
 }
 
 function renderCoach(){
