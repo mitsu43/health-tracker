@@ -2883,16 +2883,52 @@ function getCoachTargetDate(){
   return document.getElementById('coach-target-date')?.value || todayStr;
 }
 
+function buildRoutineContextForDate(date){
+  const checks=DB[date]?.c||{};
+  const priorities=ROUTINES.filter(r=>!checks[r.id]).map(r=>{
+    const weighted=Object.entries(r.affects||{}).reduce((sum,[metric,points])=>sum+points*metricUrgency(metric),0);
+    return {
+      label:r.label,
+      target:ACTIVITY_TARGETS[r.id]||'今日中',
+      affects:r.tags||[],
+      priorityScore:Math.round(weighted)
+    };
+  }).sort((a,b)=>b.priorityScore-a.priorityScore).slice(0,8);
+  const byCategory=Object.entries(CATS).map(([cat,info])=>{
+    const items=ROUTINES.filter(r=>r.cat===cat).map(r=>({
+      id:r.id,
+      label:r.label,
+      done:!!checks[r.id],
+      target:ACTIVITY_TARGETS[r.id]||'今日中',
+      affects:r.tags||[]
+    }));
+    const doneCount=items.filter(i=>i.done).length;
+    return {category:info.label,doneCount,total:items.length,items};
+  });
+  return {
+    date,
+    done:ROUTINES.filter(r=>checks[r.id]).map(r=>r.label),
+    missed:ROUTINES.filter(r=>!checks[r.id]).map(r=>({
+      label:r.label,
+      target:ACTIVITY_TARGETS[r.id]||'今日中',
+      affects:r.tags||[]
+    })),
+    byCategory,
+    priorityNow:priorities
+  };
+}
+
 function buildCoachContext(){
   const days=recentDays(30);
-  const todayChecks=(today()&&today().c)||{};
-  const officeDone=OFFICE_PLAN.filter(r=>todayChecks[r.id]).map(r=>r.label);
-  const officeMissed=OFFICE_PLAN.filter(r=>!todayChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
+  const targetDate=getCoachTargetDate();
+  const targetChecks=(DB[targetDate]?.c)||{};
+  const officeDone=OFFICE_PLAN.filter(r=>targetChecks[r.id]).map(r=>r.label);
+  const officeMissed=OFFICE_PLAN.filter(r=>!targetChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
   const meds=getMeds().filter(m=>m.active!==false);
-  const medToday=meds.filter(m=>isMedActiveOn(m,todayStr));
+  const medToday=meds.filter(m=>isMedActiveOn(m,targetDate));
   const medDosesToday=medToday.flatMap(m=>medTimes(m).map(time=>({m,time})));
-  const medDone=medDosesToday.filter(d=>isMedDoseChecked(todayChecks,d.m,d.time)).map(d=>({name:d.m.name,category:MED_CATS[d.m.category]?.label||'その他',time:MED_TIMES[d.time]?.label||'',period:getMedPeriodText(d.m)}));
-  const medMissed=medDosesToday.filter(d=>!isMedDoseChecked(todayChecks,d.m,d.time)).map(d=>({name:d.m.name,category:MED_CATS[d.m.category]?.label||'その他',time:MED_TIMES[d.time]?.label||'',note:d.m.note||'',period:getMedPeriodText(d.m)}));
+  const medDone=medDosesToday.filter(d=>isMedDoseChecked(targetChecks,d.m,d.time)).map(d=>({name:d.m.name,category:MED_CATS[d.m.category]?.label||'その他',time:MED_TIMES[d.time]?.label||'',period:getMedPeriodText(d.m)}));
+  const medMissed=medDosesToday.filter(d=>!isMedDoseChecked(targetChecks,d.m,d.time)).map(d=>({name:d.m.name,category:MED_CATS[d.m.category]?.label||'その他',time:MED_TIMES[d.time]?.label||'',note:d.m.note||'',period:getMedPeriodText(d.m)}));
   const records=days.map(date=>({date, checks:DB[date]?.c||{}, vitals:DB[date]?.v||{}}))
     .filter(r=>Object.keys(r.checks).length||Object.keys(r.vitals).length);
   const mealSummary=days.flatMap(date=>(DB[date]?.v?.meals||[]).map(m=>({
@@ -2910,7 +2946,7 @@ function buildCoachContext(){
   }).sort((a,b)=>b.missRate-a.missRate).slice(0,8);
 
   return {
-    consultDate: getCoachTargetDate(),
+    consultDate: targetDate,
     goals: GOALS,
     latest: {
       wt:getLatestVal('wt'), sbp:getLatestVal('sbp'), ldl:getLatestVal('ldl'),
@@ -2918,7 +2954,9 @@ function buildCoachContext(){
       bf:getLatestVal('bf'), vis:getLatestVal('vis'), waist:getLatestVal('waist'), bmr:getLatestVal('bmr'),
       skeletal_muscle:getLatestVal('skeletal_muscle'), asm_index:getLatestVal('asm_index'), lean_mass:getLatestVal('lean_mass'), body_water:getLatestVal('body_water')
     },
+    targetDateVitals: DB[targetDate]?.v || {},
     todayVitals: DB[todayStr]?.v || {},
+    routineManagement: buildRoutineContextForDate(targetDate),
     officeWorkPlan: {
       done: officeDone,
       missed: officeMissed,
@@ -3016,7 +3054,7 @@ async function askDailyReview(){
     const data=await res.json();
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     ans.textContent=data.answer;
-    msg.textContent='明日のプランを作成しました（履歴に保存済み）';
+    msg.textContent=data.historySaved===false?'明日のプランを作成しました（履歴保存は失敗）':'明日のプランを作成しました（履歴に保存済み）';
     loadCoachLogs();
   }catch(e){
     const text=e.message||'';
@@ -3050,7 +3088,7 @@ async function askCoach(mode){
     const data=await res.json();
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     ans.textContent=data.answer;
-    msg.textContent='回答しました（履歴に保存済み）';
+    msg.textContent=data.historySaved===false?'回答しました（履歴保存は失敗）':'回答しました（履歴に保存済み）';
     loadCoachLogs();
   }catch(e){
     const text=e.message||'';
