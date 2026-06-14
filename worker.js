@@ -43,6 +43,8 @@ async function handleAPI(request, url, method, env) {
   }
 
   try {
+    await ensureSchema(env);
+
     // GET /api/data — 全データ取得（初回ロード、デバイス間同期用）
     if (url.pathname === "/api/data" && method === "GET") {
       const rows = await env.DB.prepare(
@@ -128,16 +130,23 @@ async function handleAPI(request, url, method, env) {
       }
 
       const answer = await callGemini(env, mode, question, context);
-      await env.DB.prepare(`
-        INSERT INTO coach_logs (mode, question, answer, context, created_at)
-        VALUES (?, ?, ?, ?, datetime('now'))
-      `).bind(
-        mode,
-        question,
-        answer,
-        JSON.stringify(context || {})
-      ).run();
-      return json({ ok: true, answer }, cors);
+      let historySaved = true;
+      let historyError = "";
+      try {
+        await env.DB.prepare(`
+          INSERT INTO coach_logs (mode, question, answer, context, created_at)
+          VALUES (?, ?, ?, ?, datetime('now'))
+        `).bind(
+          mode,
+          question,
+          answer,
+          JSON.stringify(context || {})
+        ).run();
+      } catch (err) {
+        historySaved = false;
+        historyError = err.message || String(err);
+      }
+      return json({ ok: true, answer, historySaved, historyError }, cors);
     }
 
     // POST /api/meal/analyze — 食事写真の解析
@@ -186,6 +195,38 @@ async function handleAPI(request, url, method, env) {
 
 function json(data, headers, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+async function ensureSchema(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS daily_data (
+      date        TEXT PRIMARY KEY,
+      checks      TEXT DEFAULT '{}',
+      vitals      TEXT DEFAULT '{}',
+      updated_at  TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS goals (
+      id          INTEGER PRIMARY KEY CHECK (id = 1),
+      data        TEXT DEFAULT '{}',
+      updated_at  TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+  await env.DB.prepare(`
+    INSERT OR IGNORE INTO goals (id, data)
+    VALUES (1, '{"wt":83,"sbp":125,"dbp":80,"ldl":119,"ua":7.0,"hba1c":5.5,"steps":10000,"water_ml":1500,"slp":7,"bf":25,"waist":90}')
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS coach_logs (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at  TEXT DEFAULT (datetime('now')),
+      mode        TEXT DEFAULT 'today',
+      question    TEXT NOT NULL,
+      answer      TEXT NOT NULL,
+      context     TEXT DEFAULT '{}'
+    )
+  `).run();
 }
 
 async function callGeminiMeal(env, { imageBase64, mimeType, mealType, note }) {
@@ -290,6 +331,8 @@ async function callGemini(env, mode, question, context) {
     isDailyReview ? "明日の最小ミッションは最大3つ、時間帯別プランは朝9時・昼12時・夕3時・夜の4つで短く書いてください。" : "",
     "外出、外食、観戦、飲み会、コンビニ、移動中の相談では、飲み物・食べ物・おやつ・帰宅後の注意を必ず含めてください。",
     "LDL、尿酸値、HbA1c、血圧、体重のうち、どれに効く行動かを必要に応じて明示してください。",
+    "context.routineManagement がある場合は、ルーティーン管理の達成・未達・優先順位を必ず踏まえてください。",
+    "未達ルーティーンを全部やらせるのではなく、検査値改善に効く順に最大3つへ絞って提案してください。",
     "完璧主義を避け、優先順位をつけてください。できれば『最低限これだけ』を最初に1つ示してください。",
     "",
     `相談モード: ${mode}`,
