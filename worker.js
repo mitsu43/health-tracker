@@ -321,13 +321,13 @@ async function callGemini(env, mode, question, context) {
     "役割は、ユーザーの生活ログを整理し、最小限の努力で改善しやすい行動を提案することです。",
     "医師の診断、薬の判断、治療方針の断定はしません。",
     "異常値、強い症状、継続する不調がある場合は医療機関への相談を促してください。",
-    "回答は日本語で、短すぎず、実際にその場で選べる具体案を出してください。",
-    isDailyReview ? "" : "通常相談では全体を500字以内にし、最後まで完結してください。",
+    "回答は日本語で、実際にその場で選べる具体案を出してください。",
+    isDailyReview ? "夜レビューは全体を900字以内にし、各見出しは短く完結してください。" : "通常相談では全体を450字以内にし、最後まで完結してください。",
     "必ず複数行で回答してください。1行でまとめることは禁止です。",
     "Markdownの # や * は使わず、見出しは【今日の最小ミッション】のように全角カッコで書いてください。",
     headingInstruction,
-    "各見出しの後は必ず改行し、各項目も1つずつ改行してください。1行だけで終わらせないでください。",
-    isDailyReview ? "夜レビューでは各見出しを1〜2項目に絞り、全体を1000字以内で必ず最後の【さぼってOK】まで完結してください。" : "",
+    "各見出しの後は必ず改行し、各項目は短文で1つずつ改行してください。長文説明は禁止です。",
+    isDailyReview ? "夜レビューでは各見出しを1項目中心に絞り、必ず最後の【さぼってOK】まで完結してください。" : "",
     isDailyReview ? "明日の最小ミッションは最大3つ、時間帯別プランは朝9時・昼12時・夕3時・夜の4つで短く書いてください。" : "",
     "外出、外食、観戦、飲み会、コンビニ、移動中の相談では、飲み物・食べ物・おやつ・帰宅後の注意を必ず含めてください。",
     "LDL、尿酸値、HbA1c、血圧、体重のうち、どれに効く行動かを必要に応じて明示してください。",
@@ -339,7 +339,7 @@ async function callGemini(env, mode, question, context) {
     `ユーザーの相談: ${question}`,
     "",
     "直近データと目標値(JSON):",
-    JSON.stringify(context).slice(0, isDailyReview ? 12000 : 5000),
+    JSON.stringify(context).slice(0, isDailyReview ? 9000 : 4200),
   ].join("\n");
 
   let lastError = "";
@@ -352,7 +352,7 @@ async function callGemini(env, mode, question, context) {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.35,
-          maxOutputTokens: isDailyReview ? 2400 : 1800,
+          maxOutputTokens: isDailyReview ? 4096 : 2048,
         },
       }),
     });
@@ -363,11 +363,8 @@ async function callGemini(env, mode, question, context) {
       const answer = candidate?.content?.parts?.map((p) => p.text || "").join("\n").trim()
         || "回答を生成できませんでした。";
       let formatted = formatCoachAnswer(answer, mode);
-      const missingFinalHeading = isDailyReview
-        ? !formatted.includes("【さぼってOK】")
-        : !formatted.includes("【理由】");
-      if (candidate?.finishReason === "MAX_TOKENS" || missingFinalHeading) {
-        formatted += "\n\n（回答が長くなり途中で切れた可能性があります。もう一度押すと再生成できます。）";
+      if (candidate?.finishReason === "MAX_TOKENS") {
+        formatted += "\n\n（回答が上限で止まりました。相談内容を少し短くするか、もう一度押すと再生成できます。）";
       }
       return formatted;
     }
