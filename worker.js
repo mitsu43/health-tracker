@@ -345,28 +345,47 @@ async function callGemini(env, mode, question, context) {
   let lastError = "";
   for (const model of fallbackModels) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+    const generationConfig = {
+      temperature: 0.35,
+      maxOutputTokens: isDailyReview ? 8192 : 4096,
+    };
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.35,
-          maxOutputTokens: isDailyReview ? 4096 : 2048,
-        },
+        generationConfig,
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
       const candidate = data.candidates?.[0];
-      const answer = candidate?.content?.parts?.map((p) => p.text || "").join("\n").trim()
+      let answer = candidate?.content?.parts?.map((p) => p.text || "").join("\n").trim()
         || "回答を生成できませんでした。";
-      let formatted = formatCoachAnswer(answer, mode);
-      if (candidate?.finishReason === "MAX_TOKENS") {
-        formatted += "\n\n（回答が上限で止まりました。相談内容を少し短くするか、もう一度押すと再生成できます。）";
+      let finishReason = candidate?.finishReason || "";
+      for (let i = 0; i < 2 && finishReason === "MAX_TOKENS"; i++) {
+        const continuation = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              { role: "user", parts: [{ text: prompt }] },
+              { role: "model", parts: [{ text: answer }] },
+              { role: "user", parts: [{ text: "前の回答が途中で止まりました。前文を繰り返さず、未完了の見出しから続きを書いて、最後まで完結してください。追加は最大300字です。" }] },
+            ],
+            generationConfig: { ...generationConfig, maxOutputTokens: 1200 },
+          }),
+        });
+        if (!continuation.ok) break;
+        const continuationData = await continuation.json();
+        const continuationCandidate = continuationData.candidates?.[0];
+        const continuationText = continuationCandidate?.content?.parts?.map((p) => p.text || "").join("\n").trim();
+        if (!continuationText) break;
+        answer += "\n\n" + continuationText;
+        finishReason = continuationCandidate?.finishReason || "";
       }
-      return formatted;
+      return formatCoachAnswer(answer, mode);
     }
 
     const errText = await res.text();
