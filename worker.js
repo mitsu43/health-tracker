@@ -8,8 +8,8 @@
  *   GET  /api/day/:date → 特定日のデータを返す
  *   POST /api/goals     → 目標値を保存
  *   POST /api/coach     → Geminiで伴走コメントを生成
- *   POST /api/meal/analyze → 食事写真をGeminiで解析
  *   GET  /api/coach/logs → Gemini相談履歴を取得
+ *   DELETE /api/coach/logs/:id → Gemini相談履歴を削除
  */
 
 export default {
@@ -43,8 +43,6 @@ async function handleAPI(request, url, method, env) {
   }
 
   try {
-    await ensureSchema(env);
-
     // GET /api/data — 全データ取得（初回ロード、デバイス間同期用）
     if (url.pathname === "/api/data" && method === "GET") {
       const rows = await env.DB.prepare(
@@ -130,40 +128,16 @@ async function handleAPI(request, url, method, env) {
       }
 
       const answer = await callGemini(env, mode, question, context);
-      let historySaved = true;
-      let historyError = "";
-      try {
-        await env.DB.prepare(`
-          INSERT INTO coach_logs (mode, question, answer, context, created_at)
-          VALUES (?, ?, ?, ?, datetime('now'))
-        `).bind(
-          mode,
-          question,
-          answer,
-          JSON.stringify(context || {})
-        ).run();
-      } catch (err) {
-        historySaved = false;
-        historyError = err.message || String(err);
-      }
-      return json({ ok: true, answer, historySaved, historyError }, cors);
-    }
-
-    // POST /api/meal/analyze — 食事写真の解析
-    if (url.pathname === "/api/meal/analyze" && method === "POST") {
-      if (!env.GEMINI_API_KEY) {
-        return json({ error: "GEMINI_API_KEY is not configured" }, cors, 500);
-      }
-      const body = await request.json();
-      const imageBase64 = String(body.imageBase64 || "");
-      const mimeType = String(body.mimeType || "image/jpeg");
-      const mealType = String(body.mealType || "").slice(0, 30);
-      const note = String(body.note || "").slice(0, 500);
-      if (!imageBase64) {
-        return json({ error: "image is required" }, cors, 400);
-      }
-      const analysis = await callGeminiMeal(env, { imageBase64, mimeType, mealType, note });
-      return json({ ok: true, analysis }, cors);
+      await env.DB.prepare(`
+        INSERT INTO coach_logs (mode, question, answer, context, created_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+      `).bind(
+        mode,
+        question,
+        answer,
+        JSON.stringify(context || {})
+      ).run();
+      return json({ ok: true, answer }, cors);
     }
 
     // GET /api/coach/logs — 相談履歴を取得
@@ -177,13 +151,13 @@ async function handleAPI(request, url, method, env) {
       return json({ ok: true, logs: rows.results || [] }, cors);
     }
 
-    // DELETE /api/coach/logs/:id — 相談履歴を削除
-    const logDeleteMatch = url.pathname.match(/^\/api\/coach\/logs\/(\d+)$/);
-    if (logDeleteMatch && method === "DELETE") {
-      await env.DB.prepare("DELETE FROM coach_logs WHERE id = ?")
-        .bind(Number(logDeleteMatch[1]))
-        .run();
-      return json({ ok: true }, cors);
+    const coachLogDeleteMatch = url.pathname.match(/^\/api\/coach\/logs\/(\d+)$/);
+    if (coachLogDeleteMatch && method === "DELETE") {
+      const result = await env.DB.prepare(
+        "DELETE FROM coach_logs WHERE id = ?"
+      ).bind(Number(coachLogDeleteMatch[1])).run();
+
+      return json({ ok: true, deleted: result.meta?.changes || 0 }, cors);
     }
 
     return json({ error: "not found" }, cors, 404);
@@ -197,114 +171,6 @@ function json(data, headers, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
 }
 
-async function ensureSchema(env) {
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS daily_data (
-      date        TEXT PRIMARY KEY,
-      checks      TEXT DEFAULT '{}',
-      vitals      TEXT DEFAULT '{}',
-      updated_at  TEXT DEFAULT (datetime('now'))
-    )
-  `).run();
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS goals (
-      id          INTEGER PRIMARY KEY CHECK (id = 1),
-      data        TEXT DEFAULT '{}',
-      updated_at  TEXT DEFAULT (datetime('now'))
-    )
-  `).run();
-  await env.DB.prepare(`
-    INSERT OR IGNORE INTO goals (id, data)
-    VALUES (1, '{"wt":83,"sbp":125,"dbp":80,"ldl":119,"ua":7.0,"hba1c":5.5,"steps":10000,"water_ml":1500,"slp":7,"bf":25,"waist":90}')
-  `).run();
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS coach_logs (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      created_at  TEXT DEFAULT (datetime('now')),
-      mode        TEXT DEFAULT 'today',
-      question    TEXT NOT NULL,
-      answer      TEXT NOT NULL,
-      context     TEXT DEFAULT '{}'
-    )
-  `).run();
-}
-
-async function callGeminiMeal(env, { imageBase64, mimeType, mealType, note }) {
-  const preferredModel = env.GEMINI_MODEL || "gemini-2.5-flash";
-  const fallbackModels = [
-    preferredModel,
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
-  ].filter((model, index, all) => model && all.indexOf(model) === index);
-  const prompt = [
-    "あなたは健康管理アプリの食事記録アシスタントです。",
-    "画像から食べたものを推定し、医療判断ではなく生活ログとして整理してください。",
-    "LDL、尿酸値、HbA1c、血圧、体重への影響を、過度に断定せず簡潔に評価してください。",
-    "必ずJSONだけで返してください。Markdownや説明文は禁止です。",
-    "形式:",
-    '{"summary":"短い食事名","items":["品目1","品目2"],"estimate":{"calories":"例 600-800kcal","carbs":"低/中/高","fat":"低/中/高","protein":"低/中/高","salt":"低/中/高"},"healthTags":["LDL注意","尿酸注意","HbA1c注意","血圧注意","体重注意"],"good":"良い点","caution":"注意点","nextAction":"次に足す/控えるなら"}',
-    "",
-    `食事タイミング: ${mealType || "未指定"}`,
-    `ユーザーメモ: ${note || "なし"}`,
-  ].join("\n");
-
-  let lastError = "";
-  for (const model of fallbackModels) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType, data: imageBase64 } },
-          ],
-        }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 900,
-        },
-      }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim() || "{}";
-      return parseMealAnalysis(text);
-    }
-    const errText = await res.text();
-    lastError = `Gemini API error ${res.status} on ${model}: ${errText.slice(0, 300)}`;
-    if (![429, 503].includes(res.status)) throw new Error(lastError);
-  }
-  throw new Error(`${lastError}\n食事写真の解析に失敗しました。少し時間を置いて再試行してください。`);
-}
-
-function parseMealAnalysis(text) {
-  const raw = String(text || "").trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      summary: String(parsed.summary || "食事"),
-      items: Array.isArray(parsed.items) ? parsed.items.map(String).slice(0, 8) : [],
-      estimate: parsed.estimate || {},
-      healthTags: Array.isArray(parsed.healthTags) ? parsed.healthTags.map(String).slice(0, 6) : [],
-      good: String(parsed.good || ""),
-      caution: String(parsed.caution || ""),
-      nextAction: String(parsed.nextAction || ""),
-    };
-  } catch {
-    return {
-      summary: "食事写真",
-      items: [],
-      estimate: {},
-      healthTags: [],
-      good: "",
-      caution: raw.slice(0, 500),
-      nextAction: "",
-    };
-  }
-}
-
 async function callGemini(env, mode, question, context) {
   const preferredModel = env.GEMINI_MODEL || "gemini-2.5-flash";
   const fallbackModels = [
@@ -312,80 +178,45 @@ async function callGemini(env, mode, question, context) {
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
   ].filter((model, index, all) => model && all.indexOf(model) === index);
-  const isDailyReview = mode === "daily_review";
-  const headingInstruction = isDailyReview
-    ? "必ず次の見出しをこの順番で使ってください: 【今日の振り返り】/【足りなかったこと】/【明日の最小ミッション】/【時間帯別プラン】/【優先する数値】/【さぼってOK】。"
-    : "必ず次の見出しをこの順番で使ってください: 【結論】/【今日の最小ミッション】/【目安】/【理由】。";
   const prompt = [
     "あなたは健康管理アプリの伴走コーチです。",
     "役割は、ユーザーの生活ログを整理し、最小限の努力で改善しやすい行動を提案することです。",
     "医師の診断、薬の判断、治療方針の断定はしません。",
     "異常値、強い症状、継続する不調がある場合は医療機関への相談を促してください。",
-    "回答は日本語で、実際にその場で選べる具体案を出してください。",
-    isDailyReview ? "夜レビューは全体を900字以内にし、各見出しは短く完結してください。" : "通常相談では全体を450字以内にし、最後まで完結してください。",
-    "必ず複数行で回答してください。1行でまとめることは禁止です。",
+    "回答は日本語で、短すぎず、実際にその場で選べる具体案を出してください。",
     "Markdownの # や * は使わず、見出しは【今日の最小ミッション】のように全角カッコで書いてください。",
-    headingInstruction,
-    "各見出しの後は必ず改行し、各項目は短文で1つずつ改行してください。長文説明は禁止です。",
-    isDailyReview ? "夜レビューでは各見出しを1項目中心に絞り、必ず最後の【さぼってOK】まで完結してください。" : "",
-    isDailyReview ? "明日の最小ミッションは最大3つ、時間帯別プランは朝9時・昼12時・夕3時・夜の4つで短く書いてください。" : "",
+    "必ず次の見出しをこの順番で使ってください: 【今日の最小ミッション】/【選ぶとよいもの】/【避けるもの】/【さぼってOK】/【気をつけるサイン】/【理由】。",
+    "各見出しには1〜3項目を書いてください。1行だけで終わらせないでください。",
     "外出、外食、観戦、飲み会、コンビニ、移動中の相談では、飲み物・食べ物・おやつ・帰宅後の注意を必ず含めてください。",
     "LDL、尿酸値、HbA1c、血圧、体重のうち、どれに効く行動かを必要に応じて明示してください。",
-    "context.routineManagement がある場合は、ルーティーン管理の達成・未達・優先順位を必ず踏まえてください。",
-    "未達ルーティーンを全部やらせるのではなく、検査値改善に効く順に最大3つへ絞って提案してください。",
     "完璧主義を避け、優先順位をつけてください。できれば『最低限これだけ』を最初に1つ示してください。",
     "",
     `相談モード: ${mode}`,
     `ユーザーの相談: ${question}`,
     "",
     "直近データと目標値(JSON):",
-    JSON.stringify(context).slice(0, isDailyReview ? 9000 : 4200),
+    JSON.stringify(context).slice(0, 12000),
   ].join("\n");
 
   let lastError = "";
   for (const model of fallbackModels) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
-    const generationConfig = {
-      temperature: 0.35,
-      maxOutputTokens: isDailyReview ? 8192 : 4096,
-    };
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig,
+        generationConfig: {
+          temperature: 0.35,
+          maxOutputTokens: 1400,
+        },
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-      const candidate = data.candidates?.[0];
-      let answer = candidate?.content?.parts?.map((p) => p.text || "").join("\n").trim()
+      return data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
         || "回答を生成できませんでした。";
-      let finishReason = candidate?.finishReason || "";
-      for (let i = 0; i < 2 && finishReason === "MAX_TOKENS"; i++) {
-        const continuation = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              { role: "user", parts: [{ text: prompt }] },
-              { role: "model", parts: [{ text: answer }] },
-              { role: "user", parts: [{ text: "前の回答が途中で止まりました。前文を繰り返さず、未完了の見出しから続きを書いて、最後まで完結してください。追加は最大300字です。" }] },
-            ],
-            generationConfig: { ...generationConfig, maxOutputTokens: 1200 },
-          }),
-        });
-        if (!continuation.ok) break;
-        const continuationData = await continuation.json();
-        const continuationCandidate = continuationData.candidates?.[0];
-        const continuationText = continuationCandidate?.content?.parts?.map((p) => p.text || "").join("\n").trim();
-        if (!continuationText) break;
-        answer += "\n\n" + continuationText;
-        finishReason = continuationCandidate?.finishReason || "";
-      }
-      return formatCoachAnswer(answer, mode);
     }
 
     const errText = await res.text();
@@ -398,41 +229,4 @@ async function callGemini(env, mode, question, context) {
   }
 
   throw new Error(`${lastError}\nすべてのGemini候補モデルが混雑しています。数分置いて再試行してください。`);
-}
-
-function formatCoachAnswer(answer, mode = "today") {
-  const defaultHeadings = [
-    "結論",
-    "今日の最小ミッション",
-    "目安",
-    "理由",
-  ];
-  const reviewHeadings = [
-    "今日の振り返り",
-    "足りなかったこと",
-    "明日の最小ミッション",
-    "時間帯別プラン",
-    "優先する数値",
-    "さぼってOK",
-  ];
-  const headings = mode === "daily_review" ? reviewHeadings : defaultHeadings;
-  let text = String(answer || "").trim();
-
-  for (const heading of headings) {
-    text = text.replaceAll(`【${heading}】`, `\n\n【${heading}】\n`);
-  }
-
-  text = text
-    .replace(/。(?=【)/g, "。\n\n")
-    .replace(/。(?=[^\n])/g, "。\n")
-    .replace(/([。！？])\s*(?=[0-9０-９一二三四五六七八九十]+[.．、])/g, "$1\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  const hasHeading = headings.some((heading) => text.includes(`【${heading}】`));
-  if (!hasHeading && text.length > 80) {
-    text = text.replace(/。/g, "。\n").replace(/\n{3,}/g, "\n\n").trim();
-  }
-
-  return text;
 }
