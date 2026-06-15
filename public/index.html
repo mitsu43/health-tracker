@@ -189,8 +189,14 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .med-empty{font-size:11px;color:var(--text3);line-height:1.5}
 .med-period{font-size:11px;color:var(--text2);margin-top:3px}
 .med-photo{width:100%;max-width:140px;border:1px solid var(--border);border-radius:8px;margin:7px 0 2px;display:block;background:var(--bg2)}
+.med-photo-btn{border:0;background:transparent;padding:0;margin:0;display:block;cursor:zoom-in;text-align:left}
 .med-photo-preview{display:flex;align-items:flex-start;gap:10px;margin-top:8px;flex-wrap:wrap}
-.med-photo-preview img{width:120px;max-height:120px;object-fit:cover;border:1px solid var(--border);border-radius:8px;background:var(--bg2)}
+.med-photo-preview img{width:120px;max-height:120px;object-fit:cover;border:1px solid var(--border);border-radius:8px;background:var(--bg2);cursor:zoom-in}
+.image-modal{position:fixed;inset:0;background:rgba(20,18,16,0.74);display:none;align-items:center;justify-content:center;z-index:1000;padding:24px}
+.image-modal.active{display:flex}
+.image-modal-inner{max-width:min(96vw,980px);max-height:92vh;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:0 20px 60px rgba(0,0,0,0.25)}
+.image-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;font-size:13px;font-weight:700;color:var(--text)}
+.image-modal img{display:block;max-width:calc(96vw - 48px);max-height:calc(92vh - 70px);object-fit:contain;border-radius:8px;background:#fff}
 .med-calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .med-cal-cell{min-height:64px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:11px;color:var(--text2);line-height:1.35}
 .med-cal-cell.has-med{background:var(--accent-dim);border-color:rgba(201,106,42,0.25)}
@@ -472,7 +478,6 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     </div>
     <div class="time-grid" id="time-summary"></div>
     <div id="office-plan-body"></div>
-    <div id="today-med-body"></div>
     <div id="routine-body"></div>
   </div>
 </div>
@@ -481,10 +486,6 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 <div id="page-meds" class="page">
   <div class="topbar"><div class="page-title">💊 お薬管理</div></div>
   <div style="padding:0 32px">
-    <div class="card">
-      <div class="card-title">今日飲む薬（朝・昼・夜）</div>
-      <div id="med-schedule-top"></div>
-    </div>
     <div class="card">
       <div class="card-title">薬を登録</div>
       <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
@@ -849,6 +850,16 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 </div><!-- /main -->
 </div><!-- /app -->
 
+<div id="med-image-modal" class="image-modal" onclick="closeMedicationImage(event)">
+  <div class="image-modal-inner" onclick="event.stopPropagation()">
+    <div class="image-modal-head">
+      <span id="med-image-modal-title">薬のスクショ</span>
+      <button class="med-mini-btn" onclick="closeMedicationImage()">閉じる</button>
+    </div>
+    <img id="med-image-modal-img" alt="薬のスクショ拡大">
+  </div>
+</div>
+
 <script>
 // ========== DATA ==========
 const ROUTINES = [
@@ -1129,7 +1140,7 @@ function sw(name){
   });
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  if(name==='today'){renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderTodayMeds();renderRoutine()}
+  if(name==='today'){renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine()}
   if(name==='record'){renderRec()}
   if(name==='meds'){renderMedPage()}
   if(name==='analysis'){renderAnalysis()}
@@ -1619,9 +1630,37 @@ function setMedicationImagePreview(src){
   if(hidden)hidden.value=src||'';
   if(!preview)return;
   preview.innerHTML=src?`
-    <img src="${escapeAttr(src)}" alt="薬のスクショ">
+    <img src="${escapeAttr(src)}" alt="薬のスクショ" onclick="openMedicationImageFromForm()">
     <button type="button" class="med-mini-btn" onclick="clearMedicationImage()">削除</button>
   `:'';
+}
+
+function openMedicationImage(src,title='薬のスクショ'){
+  if(!src)return;
+  const modal=document.getElementById('med-image-modal');
+  const img=document.getElementById('med-image-modal-img');
+  const titleEl=document.getElementById('med-image-modal-title');
+  if(img)img.src=src;
+  if(titleEl)titleEl.textContent=title;
+  if(modal)modal.classList.add('active');
+}
+
+function openMedicationImageFromForm(){
+  const src=document.getElementById('med-image-data')?.value||'';
+  const name=document.getElementById('med-name')?.value||'薬のスクショ';
+  openMedicationImage(src,name);
+}
+
+function openMedicationImageById(id){
+  const med=getMeds().find(m=>String(m.id)===String(id));
+  openMedicationImage(med?.image||'',(med?.name||'薬')+'のスクショ');
+}
+
+function closeMedicationImage(){
+  const modal=document.getElementById('med-image-modal');
+  const img=document.getElementById('med-image-modal-img');
+  if(modal)modal.classList.remove('active');
+  if(img)img.src='';
 }
 
 function clearMedicationImage(){
@@ -1664,8 +1703,7 @@ function resizeMedicationImage(file){
 function renderMedPage(){
   const start=document.getElementById('med-start');
   if(start&&!start.value)start.value=todayStr;
-  renderMedScheduleTop();
-  renderMedMatrix('med-matrix-body',{editable:true,checkable:false});
+  renderMedMatrix('med-matrix-body',{editable:true,checkable:true});
   renderMedCalendar();
 }
 
@@ -1716,7 +1754,7 @@ function renderTodayMeds(){
 function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
   const el=document.getElementById(targetId);
   if(!el)return;
-  const meds=getMeds().filter(m=>m.active!==false&&(checkable?isMedActiveOn(m,todayStr):true));
+  const meds=getMeds().filter(m=>m.active!==false);
   const catKeys=Object.keys(MED_CATS);
   const timeKeys=Object.keys(MED_TIMES);
   if(!meds.length){
@@ -1731,7 +1769,7 @@ function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
     html+=`<div class="med-cell med-row-head">${MED_CATS[cat].label}</div>`;
     timeKeys.forEach(time=>{
       const cellMeds=meds.filter(m=>m.category===cat&&medTimes(m).includes(time));
-      html+=`<div class="med-cell">${cellMeds.length?cellMeds.map(m=>renderMedPill(m,{editable,checkable,time,checked:isMedDoseChecked(c,m,time)})).join(''):'<div class="med-empty">登録なし</div>'}</div>`;
+      html+=`<div class="med-cell">${cellMeds.length?cellMeds.map(m=>renderMedPill(m,{editable,checkable:checkable&&isMedActiveOn(m,todayStr),time,checked:isMedDoseChecked(c,m,time)})).join(''):'<div class="med-empty">登録なし</div>'}</div>`;
     });
   });
   html+='</div></div>';
@@ -1741,7 +1779,7 @@ function renderMedMatrix(targetId,{editable=false,checkable=false}={}){
 function renderMedPill(m,{editable=false,checkable=false,checked=false,time=''}={}){
   const tag=MED_CATS[m.category]?.tag||'bp';
   const note=m.note?`<div class="med-note">${escapeHTML(m.note)}</div>`:'';
-  const image=m.image?`<a href="${escapeAttr(m.image)}" target="_blank" rel="noopener"><img class="med-photo" src="${escapeAttr(m.image)}" alt="${escapeAttr((m.name||'薬')+'のスクショ')}"></a>`:'';
+  const image=m.image?`<button type="button" class="med-photo-btn" onclick="openMedicationImageById('${escapeAttr(m.id)}')"><img class="med-photo" src="${escapeAttr(m.image)}" alt="${escapeAttr((m.name||'薬')+'のスクショ')}"></button>`:'';
   const period=getMedPeriodText(m);
   const doseLabel=time?MED_TIMES[time]?.label||time:medTimeLabel(m);
   const checkButton=checkable?`<button class="med-mini-btn" onclick="togMed('${escapeAttr(m.id)}','${escapeAttr(time)}')">${checked?'済':'飲んだ'}</button>`:'';
@@ -1790,7 +1828,6 @@ async function addMedication(){
   resetMedicationForm();
   if(msg){msg.textContent=editId?'薬を更新しました':'薬を追加しました';setTimeout(()=>msg.textContent='',2500)}
   renderMedPage();
-  renderTodayMeds();
 }
 
 function editMedication(id){
@@ -2117,7 +2154,6 @@ async function deleteMedication(id){
   const editId=document.getElementById('med-edit-id')?.value||'';
   if(String(editId)===String(id))resetMedicationForm();
   renderMedPage();
-  renderTodayMeds();
 }
 
 function getMedEndDate(m){
@@ -2185,8 +2221,7 @@ async function togMed(id,time){
   c[key]=!c[key];
   delete c[medCheckId(id)];
   await saveDay(todayStr);
-  renderTodayMeds();
-  renderMedScheduleTop();
+  renderMedMatrix('med-matrix-body',{editable:true,checkable:true});
 }
 
 // ========== RECORD ==========
@@ -3086,7 +3121,7 @@ window.addEventListener('DOMContentLoaded',async ()=>{
   initSidebar();
   document.getElementById('today-label').textContent=fmtJP(todayStr);
   await loadDB();
-  renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderTodayMeds();renderRoutine();
+  renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
   startOnlineRetry();
 });
 </script>
