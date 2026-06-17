@@ -654,6 +654,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <label class="check-item" style="margin:0"><input type="checkbox" id="meal-alcohol" style="width:auto;margin-top:3px"> 飲酒あり</label>
         <label class="check-item" style="margin:0"><input type="checkbox" id="meal-late" style="width:auto;margin-top:3px"> 20時以降に食べた</label>
       </div>
+      <div style="margin-top:12px">
+        <button type="button" class="btn btn-ghost" onclick="analyzeMealSlot('daily_total')">1日トータルAIコメント</button>
+        <div id="meal-comment-daily_total" class="meal-ai-comment"></div>
+      </div>
     </div>
     <div class="card">
       <div class="card-title">📏 週1で確認</div>
@@ -1049,7 +1053,7 @@ const QUICK_FIELDS = ['steps','water_ml','wt','slp','sbp','dbp','waist','bf','vi
 const GOAL_FIELDS = ['wt','sbp','dbp','ldl','ua','hba1c','steps','water_ml','slp','bf','waist'];
 const MEAL_TEXT_FIELDS = ['breakfast','lunch','dinner','snack','drink','supplements','note'];
 const MEAL_FLAG_FIELDS = ['out','alcohol','fried','late'];
-const MEAL_COMMENT_FIELDS = ['breakfast','lunch','dinner','snack','supplements'];
+const MEAL_COMMENT_FIELDS = ['breakfast','lunch','dinner','snack','supplements','daily_total'];
 const DEFAULT_GOALS = {wt:83,sbp:125,dbp:80,ldl:119,ua:7.0,hba1c:5.5,steps:10000,water_ml:1500,slp:7,bf:25,waist:90};
 const BASELINE = {wt:89.2,sbp:128,ldl:179,ua:8.1,hba1c:6.1,fg:109,steps:0,slp:0};
 const METRIC_INFO = {
@@ -2421,23 +2425,26 @@ function applyMealAnalysis(meal,slot='auto'){
 }
 
 function mealSlotLabel(slot){
-  return {breakfast:'朝食',lunch:'昼食',dinner:'夕食',snack:'間食・夜食',supplements:'サプリ'}[slot]||slot;
+  return {breakfast:'朝食',lunch:'昼食',dinner:'夕食',snack:'間食・夜食',drink:'飲み物・飲酒',supplements:'サプリ',note:'メモ',daily_total:'1日トータル'}[slot]||slot;
 }
 
 async function analyzeMealSlot(slot){
-  const target=document.getElementById('meal-'+slot);
   const comment=document.getElementById('meal-comment-'+slot);
-  const value=(target?.value||'').trim();
+  const currentMeals=readMealLog();
+  const target=document.getElementById('meal-'+slot);
+  const value=slot==='daily_total'
+    ? MEAL_TEXT_FIELDS.map(k=>`${mealSlotLabel(k)}: ${currentMeals[k]||''}`).filter(line=>!line.endsWith(': ')).join('\n')
+    : (target?.value||'').trim();
   if(!value){if(comment)comment.textContent=`${mealSlotLabel(slot)}を先に入力してください。`;return}
   const btn=[...document.querySelectorAll('button')].find(b=>b.getAttribute('onclick')===`analyzeMealSlot('${slot}')`);
   try{
     if(btn)btn.disabled=true;
-    if(comment)comment.textContent='AIが確認しています...';
+    if(comment)comment.textContent='AIが良い点・悪い点・不足しそうなものを詳しく確認しています...';
     const context={
       date:recDateStr,
       slot,
       meal:value,
-      meals:readMealLog(),
+      meals:currentMeals,
       vitals:DB[recDateStr]?.v||{},
       goals:GOALS,
       latest:{
