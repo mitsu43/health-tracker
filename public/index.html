@@ -957,6 +957,18 @@ const ROUTINES = [
   {id:'sleep7',    cat:'night', label:'7時間以上の睡眠確保',
    why:'睡眠不足はコルチゾール急上昇→血糖値・LDL・血圧の三重悪化。最も重要な習慣の一つ。',
    affects:{hba1c:12,ldl:10,bp:15,weight:8}, skipRate:{hba1c:0.012,ldl:0.5,bp:0.6}, tags:['hba1c','ldl','bp','weight']},
+  {id:'longevity_strength', cat:'longevity', label:'筋力・バランス10分',
+   why:'百歳まで自分の足で動く土台。筋トレと片足立ち・かかと上げで転倒予防、血糖消費、フレイル予防を同時に狙う。',
+   affects:{hba1c:8,weight:8,bp:5}, skipRate:{hba1c:0.006,weight:0.02,bp:0.2}, tags:['hba1c','weight','bp']},
+  {id:'longevity_oral', cat:'longevity', label:'歯みがき＋歯間ケア',
+   why:'口腔ケアは食べる力を守る基礎。歯ぐきの炎症・噛む力の低下を防ぎ、将来の低栄養や血糖悪化を遠ざける。',
+   affects:{hba1c:5,weight:4}, skipRate:{hba1c:0.004}, tags:['hba1c','weight']},
+  {id:'longevity_social', cat:'longevity', label:'誰かと一言つながる',
+   why:'孤立を避けることは長く健康に暮らす土台。家族・友人・同僚への一言、挨拶、短い連絡で十分。',
+   affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
+  {id:'longevity_purpose', cat:'longevity', label:'学び・趣味・役割を10分',
+   why:'脳と気持ちを使う時間を毎日残す。読書、語学、片づけ、誰かの役に立つ作業など、小さな目的でOK。',
+   affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
 ];
 
 const CATS = {
@@ -964,6 +976,7 @@ const CATS = {
   exercise:{label:'🏃 運動・活動',       color:'#2a7a4b'},
   diet:    {label:'🥗 食事管理',         color:'#b07820'},
   night:   {label:'🌙 夜のルーティーン', color:'#2563a8'},
+  longevity:{label:'🌳 百歳ノルマ',       color:'#2f7d63'},
 };
 
 const ACTIVITY_TARGETS = {
@@ -984,14 +997,18 @@ const ACTIVITY_TARGETS = {
   no_snack:'昼間: 間食なし',
   no_alc:'夜: アルコールなし',
   no_eat_20:'夜20時以降: 食べない',
-  sleep7:'夜: 7時間以上'
+  sleep7:'夜: 7時間以上',
+  longevity_strength:'夕方まで: 10分',
+  longevity_oral:'夜: 歯間ケアまで',
+  longevity_social:'1日1回: 誰かと接点',
+  longevity_purpose:'1日10分: 学び/趣味/役割'
 };
 
 const TIME_BLOCKS = [
-  {key:'am', label:'朝9時まで', target:'起床後の土台', ids:['water_am','bp_meas','walk_am','veg_first']},
+  {key:'am', label:'朝9時まで', target:'起床後の土台', ids:['water_am','bp_meas','walk_am','veg_first','longevity_purpose']},
   {key:'noon', label:'昼12時', target:'食事と水分', ids:['veg_first','water_15','chew_well','seaweed','fish','no_snack']},
-  {key:'pm', label:'夕3時', target:'活動量の帳尻', ids:['steps_10k','squat','pushup','hourly_walk','water_15']},
-  {key:'night', label:'夜', target:'悪化を止める', ids:['light_din','no_alc','no_eat_20','sleep7','no_fried']}
+  {key:'pm', label:'夕3時', target:'活動量の帳尻', ids:['steps_10k','squat','pushup','hourly_walk','water_15','longevity_strength','longevity_social']},
+  {key:'night', label:'夜', target:'悪化を止める', ids:['light_din','no_alc','no_eat_20','sleep7','no_fried','longevity_oral']}
 ];
 
 const OFFICE_PLAN = [
