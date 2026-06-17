@@ -581,45 +581,9 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   </div>
   <div style="padding:0 32px">
     <div class="card">
-      <div class="card-title">🩸 血圧・脈拍</div>
-      <div class="quick-note" style="margin-bottom:10px">朝は起床後1時間以内、夜は就寝前の落ち着いたタイミングを目安に記録します。</div>
-      <div class="form-grid">
-        <div class="form-group"><label>起床時 最高血圧 (mmHg)</label><input type="number" id="r-sbp_am" placeholder="128"></div>
-        <div class="form-group"><label>起床時 最低血圧 (mmHg)</label><input type="number" id="r-dbp_am" placeholder="84"></div>
-        <div class="form-group"><label>起床時 脈拍 (bpm)</label><input type="number" id="r-pulse_am" placeholder="66"></div>
-        <div class="form-group"><label>就寝時 最高血圧 (mmHg)</label><input type="number" id="r-sbp_pm" placeholder="122"></div>
-        <div class="form-group"><label>就寝時 最低血圧 (mmHg)</label><input type="number" id="r-dbp_pm" placeholder="78"></div>
-        <div class="form-group"><label>就寝時 脈拍 (bpm)</label><input type="number" id="r-pulse_pm" placeholder="64"></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">⚖️ 毎日入力する基礎データ</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
-        血圧・体重・活動量など、日々の改善に反応しやすい項目です。迷ったらここだけ入力すればOKです。
-      </div>
-      <div class="form-grid">
-        <div class="form-group"><label>体重 (kg)</label><input type="number" step="0.1" id="r-wt" placeholder="89.2"></div>
-        <div class="form-group"><label>体脂肪率 (%)</label><input type="number" step="0.1" id="r-bf" placeholder="27.2"></div>
-        <div class="form-group"><label>内臓脂肪レベル</label><input type="number" step="0.5" id="r-vis" placeholder="14"></div>
-        <div class="form-group"><label>推定ウエスト / 腹囲 (cm)</label><input type="number" step="0.1" id="r-waist" placeholder="95.0"></div>
-        <div class="form-group"><label>基礎代謝率 (kcal/日)</label><input type="number" id="r-bmr" placeholder="1650"></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">🚶 活動・睡眠</div>
-      <div class="form-grid">
-        <div class="form-group"><label>歩数</label><input type="number" id="r-steps" placeholder="10000"></div>
-        <div class="form-group"><label>水分量 (ml)</label><input type="number" id="r-water_ml" placeholder="1500"></div>
-        <div class="form-group"><label>睡眠時間 (h)</label><input type="number" step="0.25" id="r-slp" placeholder="6.5"></div>
-        <div class="form-group"><label>睡眠スコア</label><input type="number" id="r-slpscore" placeholder="73"></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">🍽️ 食事ログ</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
-        ざっくりでOKです。何を食べたか、外食・飲酒・揚げ物・夜食があったかを残しておくと、体重・血圧・尿酸値・HbA1cの振り返りに使えます。
-      </div>
-      <div class="barcode-box" style="margin-bottom:14px">
+      <div class="card-title">📷 食事写真を解析</div>
+      <div class="quick-note" style="margin-bottom:12px">朝・昼・夜・間食のどれかを選んで写真を解析すると、該当する食事ログ欄へ反映します。</div>
+      <div class="barcode-box">
         <div class="form-grid" style="margin-bottom:10px">
           <div class="form-group">
             <label>食事写真</label>
@@ -644,27 +608,58 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <div id="meal-image-preview" class="med-photo-preview"></div>
         <div id="meal-analysis-msg" class="quick-note"></div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🌅 朝に記録</div>
+      <div class="quick-note" style="margin-bottom:12px">起床後の血圧・体重・朝食をここにまとめます。</div>
       <div class="form-grid">
+        <div class="form-group"><label>起床時 最高血圧 (mmHg)</label><input type="number" id="r-sbp_am" placeholder="128"></div>
+        <div class="form-group"><label>起床時 最低血圧 (mmHg)</label><input type="number" id="r-dbp_am" placeholder="84"></div>
+        <div class="form-group"><label>起床時 脈拍 (bpm)</label><input type="number" id="r-pulse_am" placeholder="66"></div>
+        <div class="form-group"><label>体重 (kg)</label><input type="number" step="0.1" id="r-wt" placeholder="89.2"></div>
         <div class="form-group"><label>朝食</label><textarea id="meal-breakfast" rows="3" placeholder="例: ご飯、納豆、味噌汁"></textarea></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">☀️ 昼に記録</div>
+      <div class="quick-note" style="margin-bottom:12px">昼食と日中の水分をざっくり残します。</div>
+      <div class="form-grid">
         <div class="form-group"><label>昼食</label><textarea id="meal-lunch" rows="3" placeholder="例: そば、サラダ"></textarea></div>
-        <div class="form-group"><label>夕食</label><textarea id="meal-dinner" rows="3" placeholder="例: 魚、野菜、少なめご飯"></textarea></div>
-        <div class="form-group"><label>間食・夜食</label><textarea id="meal-snack" rows="3" placeholder="例: チョコ、ナッツ、夜食なし"></textarea></div>
-        <div class="form-group"><label>飲み物・飲酒</label><textarea id="meal-drink" rows="3" placeholder="例: 水1500ml、ビール1本"></textarea></div>
+        <div class="form-group"><label>水分量 (ml)</label><input type="number" id="r-water_ml" placeholder="1500"></div>
         <div class="form-group"><label>メモ</label><textarea id="meal-note" rows="3" placeholder="例: 外食、塩分多め、腹八分目"></textarea></div>
       </div>
       <div class="quick-grid" style="margin-bottom:0">
         <label class="check-item" style="margin:0"><input type="checkbox" id="meal-out" style="width:auto;margin-top:3px"> 外食・弁当</label>
-        <label class="check-item" style="margin:0"><input type="checkbox" id="meal-alcohol" style="width:auto;margin-top:3px"> 飲酒あり</label>
         <label class="check-item" style="margin:0"><input type="checkbox" id="meal-fried" style="width:auto;margin-top:3px"> 揚げ物・脂っこい食事</label>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🌙 夜に記録</div>
+      <div class="quick-note" style="margin-bottom:12px">夕食、1日の歩数、就寝前の血圧・睡眠予定をまとめます。</div>
+      <div class="form-grid">
+        <div class="form-group"><label>夕食</label><textarea id="meal-dinner" rows="3" placeholder="例: 魚、野菜、少なめご飯"></textarea></div>
+        <div class="form-group"><label>間食・夜食</label><textarea id="meal-snack" rows="3" placeholder="例: チョコ、ナッツ、夜食なし"></textarea></div>
+        <div class="form-group"><label>飲み物・飲酒</label><textarea id="meal-drink" rows="3" placeholder="例: 水1500ml、ビール1本"></textarea></div>
+        <div class="form-group"><label>歩数</label><input type="number" id="r-steps" placeholder="10000"></div>
+        <div class="form-group"><label>就寝時 最高血圧 (mmHg)</label><input type="number" id="r-sbp_pm" placeholder="122"></div>
+        <div class="form-group"><label>就寝時 最低血圧 (mmHg)</label><input type="number" id="r-dbp_pm" placeholder="78"></div>
+        <div class="form-group"><label>就寝時 脈拍 (bpm)</label><input type="number" id="r-pulse_pm" placeholder="64"></div>
+        <div class="form-group"><label>睡眠時間 (h)</label><input type="number" step="0.25" id="r-slp" placeholder="6.5"></div>
+        <div class="form-group"><label>睡眠スコア</label><input type="number" id="r-slpscore" placeholder="73"></div>
+      </div>
+      <div class="quick-grid" style="margin-bottom:0">
+        <label class="check-item" style="margin:0"><input type="checkbox" id="meal-alcohol" style="width:auto;margin-top:3px"> 飲酒あり</label>
         <label class="check-item" style="margin:0"><input type="checkbox" id="meal-late" style="width:auto;margin-top:3px"> 20時以降に食べた</label>
       </div>
     </div>
     <div class="card">
-      <div class="card-title">📏 週1で確認する体組成</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
-        毎日はブレやすいので、週1回の同じ曜日・同じ時間帯に入力するのがおすすめです。
-      </div>
+      <div class="card-title">📏 週1で確認</div>
+      <div class="quick-note" style="margin-bottom:12px">体脂肪や体組成はブレやすいので、週1回の同じ曜日・同じ時間帯がおすすめです。</div>
       <div class="form-grid">
+        <div class="form-group"><label>体脂肪率 (%)</label><input type="number" step="0.1" id="r-bf" placeholder="27.2"></div>
+        <div class="form-group"><label>内臓脂肪レベル</label><input type="number" step="0.5" id="r-vis" placeholder="14"></div>
+        <div class="form-group"><label>推定ウエスト / 腹囲 (cm)</label><input type="number" step="0.1" id="r-waist" placeholder="95.0"></div>
+        <div class="form-group"><label>基礎代謝率 (kcal/日)</label><input type="number" id="r-bmr" placeholder="1650"></div>
         <div class="form-group"><label>骨格筋量 (kg)</label><input type="number" step="0.1" id="r-skeletal_muscle" placeholder="30.0"></div>
         <div class="form-group"><label>四肢骨格筋指数 (kg/㎡)</label><input type="number" step="0.1" id="r-asm_index" placeholder="7.0"></div>
         <div class="form-group"><label>除脂肪体重 (kg)</label><input type="number" step="0.1" id="r-lean_mass" placeholder="65.0"></div>
