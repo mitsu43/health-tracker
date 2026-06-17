@@ -7,6 +7,7 @@
  *   POST /api/day       → 1日分のチェック/バイタルを保存
  *   GET  /api/day/:date → 特定日のデータを返す
  *   POST /api/goals     → 目標値を保存
+ *   POST /api/meal/analyze → Geminiで食事写真を解析
  *   POST /api/coach     → Geminiで伴走コメントを生成
  *   GET  /api/coach/logs → Gemini相談履歴を取得
  *   DELETE /api/coach/logs/:id → Gemini相談履歴を削除
@@ -112,6 +113,19 @@ async function handleAPI(request, url, method, env) {
       return json({ ok: true }, cors);
     }
 
+    // POST /api/meal/analyze — Geminiによる食事写真解析
+    if (url.pathname === "/api/meal/analyze" && method === "POST") {
+      if (!env.GEMINI_API_KEY) {
+        return json({ error: "GEMINI_API_KEY is not configured" }, cors, 500);
+      }
+
+      const body = await request.json();
+      const image = String(body.image || "");
+      const slot = String(body.slot || "auto").slice(0, 20);
+      const meal = await callGeminiMealImage(env, image, slot);
+      return json({ ok: true, meal }, cors);
+    }
+
     // POST /api/coach — Geminiによる伴走コメント
     if (url.pathname === "/api/coach" && method === "POST") {
       if (!env.GEMINI_API_KEY) {
@@ -169,6 +183,102 @@ async function handleAPI(request, url, method, env) {
 
 function json(data, headers, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+function parseDataUrlImage(image) {
+  const match = String(image || "").match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) throw new Error("invalid image data");
+  return { mimeType: match[1], data: match[2] };
+}
+
+function parseJsonObject(text) {
+  const raw = String(text || "").trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
+    throw new Error("meal analysis returned invalid JSON");
+  }
+}
+
+async function callGeminiMealImage(env, image, slot) {
+  const { mimeType, data } = parseDataUrlImage(image);
+  if (data.length > 5_500_000) {
+    throw new Error("image is too large");
+  }
+
+  const preferredModel = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const fallbackModels = [
+    preferredModel,
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+  ].filter((model, index, all) => model && all.indexOf(model) === index);
+
+  const prompt = [
+    "あなたは健康管理アプリの食事写真解析アシスタントです。",
+    "写真に写っている食事を日本語で短く整理し、必ずJSONだけを返してください。",
+    "診断や厳密な栄養計算はせず、見えている範囲で推定してください。分からない食材は推定と明記してください。",
+    "返すJSONのキーは breakfast, lunch, dinner, snack, drink, note, out, alcohol, fried, late, summary のみです。",
+    "breakfast/lunch/dinner/snack/drink/note/summary は文字列、out/alcohol/fried/late は真偽値です。",
+    "slot が breakfast/lunch/dinner/snack の場合、主な解析結果はそのキーに入れてください。slot が auto の場合は写真から自然に判断してください。",
+    "血圧・尿酸値・LDL・HbA1cに関係しそうな注意点があれば note に短く含めてください。",
+    `slot: ${slot || "auto"}`,
+  ].join("\n");
+
+  let lastError = "";
+  for (const model of fallbackModels) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data } },
+          ],
+        }],
+        generationConfig: {
+          temperature: 0.15,
+          maxOutputTokens: 700,
+          responseMimeType: "application/json",
+        },
+      }),
+    });
+
+    if (res.ok) {
+      const payload = await res.json();
+      const text = payload.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim() || "{}";
+      const meal = parseJsonObject(text);
+      return {
+        breakfast: String(meal.breakfast || "").slice(0, 500),
+        lunch: String(meal.lunch || "").slice(0, 500),
+        dinner: String(meal.dinner || "").slice(0, 500),
+        snack: String(meal.snack || "").slice(0, 500),
+        drink: String(meal.drink || "").slice(0, 500),
+        note: String(meal.note || "").slice(0, 700),
+        summary: String(meal.summary || "").slice(0, 500),
+        out: !!meal.out,
+        alcohol: !!meal.alcohol,
+        fried: !!meal.fried,
+        late: !!meal.late,
+      };
+    }
+
+    const errText = await res.text();
+    lastError = `Gemini API error ${res.status} on ${model}: ${errText.slice(0, 300)}`;
+    if (![429, 503].includes(res.status)) {
+      throw new Error(lastError);
+    }
+  }
+
+  throw new Error(lastError);
 }
 
 async function callGemini(env, mode, question, context) {
