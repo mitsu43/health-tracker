@@ -615,6 +615,26 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div class="card">
+      <div class="card-title">🍽️ 食事ログ</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
+        ざっくりでOKです。何を食べたか、外食・飲酒・揚げ物・夜食があったかを残しておくと、体重・血圧・尿酸値・HbA1cの振り返りに使えます。
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label>朝食</label><textarea id="meal-breakfast" rows="3" placeholder="例: ご飯、納豆、味噌汁"></textarea></div>
+        <div class="form-group"><label>昼食</label><textarea id="meal-lunch" rows="3" placeholder="例: そば、サラダ"></textarea></div>
+        <div class="form-group"><label>夕食</label><textarea id="meal-dinner" rows="3" placeholder="例: 魚、野菜、少なめご飯"></textarea></div>
+        <div class="form-group"><label>間食・夜食</label><textarea id="meal-snack" rows="3" placeholder="例: チョコ、ナッツ、夜食なし"></textarea></div>
+        <div class="form-group"><label>飲み物・飲酒</label><textarea id="meal-drink" rows="3" placeholder="例: 水1500ml、ビール1本"></textarea></div>
+        <div class="form-group"><label>メモ</label><textarea id="meal-note" rows="3" placeholder="例: 外食、塩分多め、腹八分目"></textarea></div>
+      </div>
+      <div class="quick-grid" style="margin-bottom:0">
+        <label class="check-item" style="margin:0"><input type="checkbox" id="meal-out" style="width:auto;margin-top:3px"> 外食・弁当</label>
+        <label class="check-item" style="margin:0"><input type="checkbox" id="meal-alcohol" style="width:auto;margin-top:3px"> 飲酒あり</label>
+        <label class="check-item" style="margin:0"><input type="checkbox" id="meal-fried" style="width:auto;margin-top:3px"> 揚げ物・脂っこい食事</label>
+        <label class="check-item" style="margin:0"><input type="checkbox" id="meal-late" style="width:auto;margin-top:3px"> 20時以降に食べた</label>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-title">📏 週1で確認する体組成</div>
       <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
         毎日はブレやすいので、週1回の同じ曜日・同じ時間帯に入力するのがおすすめです。
@@ -987,6 +1007,8 @@ const MED_TIME_PATTERNS = {
 const VITAL_FIELDS = ['sbp','dbp','pulse','sbp_am','dbp_am','pulse_am','sbp_pm','dbp_pm','pulse_pm','wt','bf','vis','waist','bmr','steps','water_ml','slp','slpscore','skeletal_muscle','asm_index','lean_mass','body_water','ldl','ua','hba1c','fg','tg','hdl'];
 const QUICK_FIELDS = ['steps','water_ml','wt','slp','sbp','dbp','waist','bf','vis'];
 const GOAL_FIELDS = ['wt','sbp','dbp','ldl','ua','hba1c','steps','water_ml','slp','bf','waist'];
+const MEAL_TEXT_FIELDS = ['breakfast','lunch','dinner','snack','drink','note'];
+const MEAL_FLAG_FIELDS = ['out','alcohol','fried','late'];
 const DEFAULT_GOALS = {wt:83,sbp:125,dbp:80,ldl:119,ua:7.0,hba1c:5.5,steps:10000,water_ml:1500,slp:7,bf:25,waist:90};
 const BASELINE = {wt:89.2,sbp:128,ldl:179,ua:8.1,hba1c:6.1,fg:109,steps:0,slp:0};
 const METRIC_INFO = {
@@ -2232,8 +2254,33 @@ function renderRec(){
     const el=document.getElementById('r-'+k);
     if(el)el.value=v[k]!=null?v[k]:(k==='sbp_am'?v.sbp:k==='dbp_am'?v.dbp:k==='pulse_am'?v.pulse:'')||'';
   });
+  renderMealLog(v.meals||{});
 }
 function recDay(d){const dt=new Date(recDateStr);dt.setDate(dt.getDate()+d);recDateStr=fmtD(dt);renderRec()}
+
+function renderMealLog(meals={}){
+  MEAL_TEXT_FIELDS.forEach(k=>{
+    const el=document.getElementById('meal-'+k);
+    if(el)el.value=meals[k]||'';
+  });
+  MEAL_FLAG_FIELDS.forEach(k=>{
+    const el=document.getElementById('meal-'+k);
+    if(el)el.checked=!!meals[k];
+  });
+}
+
+function readMealLog(){
+  const meals={};
+  MEAL_TEXT_FIELDS.forEach(k=>{
+    const val=(document.getElementById('meal-'+k)?.value||'').trim();
+    if(val)meals[k]=val;
+  });
+  MEAL_FLAG_FIELDS.forEach(k=>{
+    if(document.getElementById('meal-'+k)?.checked)meals[k]=true;
+  });
+  return meals;
+}
+
 async function saveRec(){
   if(!DB[recDateStr])DB[recDateStr]={c:{},v:{}};
   const v={...(DB[recDateStr].v||{})};
@@ -2241,6 +2288,9 @@ async function saveRec(){
     const el=document.getElementById('r-'+k);
     if(el&&el.value!=='')v[k]=parseFloat(el.value);
   });
+  const meals=readMealLog();
+  if(Object.keys(meals).length)v.meals=meals;
+  else delete v.meals;
   DB[recDateStr].v=v;
   await saveDay(recDateStr);
   const msg=document.getElementById('save-msg');
@@ -2562,6 +2612,7 @@ function buildCoachContext(){
       skeletal_muscle:getLatestVal('skeletal_muscle'), asm_index:getLatestVal('asm_index'), lean_mass:getLatestVal('lean_mass'), body_water:getLatestVal('body_water')
     },
     todayVitals: DB[todayStr]?.v || {},
+    todayMeals: DB[todayStr]?.v?.meals || {},
     officeWorkPlan: {
       done: officeDone,
       missed: officeMissed,
@@ -2581,6 +2632,7 @@ function buildCoachContext(){
     recentRecordsSummary: records.slice(-7).map(r=>({
       date:r.date,
       vitals:r.vitals,
+      meals:r.vitals?.meals || {},
       doneCount:Object.values(r.checks||{}).filter(Boolean).length,
       missedCount:ROUTINES.length-Object.values(r.checks||{}).filter(Boolean).length
     }))
