@@ -192,6 +192,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .med-photo-btn{border:0;background:transparent;padding:0;margin:0;display:block;cursor:zoom-in;text-align:left}
 .med-photo-preview{display:flex;align-items:flex-start;gap:10px;margin-top:8px;flex-wrap:wrap}
 .med-photo-preview img{width:120px;max-height:120px;object-fit:cover;border:1px solid var(--border);border-radius:8px;background:var(--bg2);cursor:zoom-in}
+.meal-ai-comment{margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.7;color:var(--text2);white-space:pre-wrap}
+.meal-ai-comment:empty{display:none}
 .image-modal{position:fixed;inset:0;background:rgba(20,18,16,0.74);display:none;align-items:center;justify-content:center;z-index:1000;padding:24px}
 .image-modal.active{display:flex}
 .image-modal-inner{max-width:min(96vw,980px);max-height:92vh;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:0 20px 60px rgba(0,0,0,0.25)}
@@ -617,14 +619,14 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <div class="form-group"><label>起床時 最低血圧 (mmHg)</label><input type="number" id="r-dbp_am" placeholder="84"></div>
         <div class="form-group"><label>起床時 脈拍 (bpm)</label><input type="number" id="r-pulse_am" placeholder="66"></div>
         <div class="form-group"><label>体重 (kg)</label><input type="number" step="0.1" id="r-wt" placeholder="89.2"></div>
-        <div class="form-group"><label>朝食</label><textarea id="meal-breakfast" rows="3" placeholder="例: ご飯、納豆、味噌汁"></textarea></div>
+        <div class="form-group"><label>朝食</label><textarea id="meal-breakfast" rows="3" placeholder="例: ご飯、納豆、味噌汁"></textarea><button type="button" class="med-mini-btn" onclick="analyzeMealSlot('breakfast')">朝食AIコメント</button><div id="meal-comment-breakfast" class="meal-ai-comment"></div></div>
       </div>
     </div>
     <div class="card">
       <div class="card-title">☀️ 昼に記録</div>
       <div class="quick-note" style="margin-bottom:12px">昼食と日中の水分をざっくり残します。</div>
       <div class="form-grid">
-        <div class="form-group"><label>昼食</label><textarea id="meal-lunch" rows="3" placeholder="例: そば、サラダ"></textarea></div>
+        <div class="form-group"><label>昼食</label><textarea id="meal-lunch" rows="3" placeholder="例: そば、サラダ"></textarea><button type="button" class="med-mini-btn" onclick="analyzeMealSlot('lunch')">昼食AIコメント</button><div id="meal-comment-lunch" class="meal-ai-comment"></div></div>
         <div class="form-group"><label>水分量 (ml)</label><input type="number" id="r-water_ml" placeholder="1500"></div>
         <div class="form-group"><label>メモ</label><textarea id="meal-note" rows="3" placeholder="例: 外食、塩分多め、腹八分目"></textarea></div>
       </div>
@@ -637,9 +639,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       <div class="card-title">🌙 夜に記録</div>
       <div class="quick-note" style="margin-bottom:12px">夕食、1日の歩数、就寝前の血圧・睡眠予定をまとめます。</div>
       <div class="form-grid">
-        <div class="form-group"><label>夕食</label><textarea id="meal-dinner" rows="3" placeholder="例: 魚、野菜、少なめご飯"></textarea></div>
-        <div class="form-group"><label>間食・夜食</label><textarea id="meal-snack" rows="3" placeholder="例: チョコ、ナッツ、夜食なし"></textarea></div>
+        <div class="form-group"><label>夕食</label><textarea id="meal-dinner" rows="3" placeholder="例: 魚、野菜、少なめご飯"></textarea><button type="button" class="med-mini-btn" onclick="analyzeMealSlot('dinner')">夕食AIコメント</button><div id="meal-comment-dinner" class="meal-ai-comment"></div></div>
+        <div class="form-group"><label>間食・夜食</label><textarea id="meal-snack" rows="3" placeholder="例: チョコ、ナッツ、夜食なし"></textarea><button type="button" class="med-mini-btn" onclick="analyzeMealSlot('snack')">間食AIコメント</button><div id="meal-comment-snack" class="meal-ai-comment"></div></div>
         <div class="form-group"><label>飲み物・飲酒</label><textarea id="meal-drink" rows="3" placeholder="例: 水1500ml、ビール1本"></textarea></div>
+        <div class="form-group"><label>サプリ</label><textarea id="meal-supplements" rows="3" placeholder="例: ビタミンD、EPA、マグネシウム"></textarea><button type="button" class="med-mini-btn" onclick="analyzeMealSlot('supplements')">サプリAIコメント</button><div id="meal-comment-supplements" class="meal-ai-comment"></div></div>
         <div class="form-group"><label>歩数</label><input type="number" id="r-steps" placeholder="10000"></div>
         <div class="form-group"><label>就寝時 最高血圧 (mmHg)</label><input type="number" id="r-sbp_pm" placeholder="122"></div>
         <div class="form-group"><label>就寝時 最低血圧 (mmHg)</label><input type="number" id="r-dbp_pm" placeholder="78"></div>
@@ -1044,8 +1047,9 @@ const MED_TIME_PATTERNS = {
 const VITAL_FIELDS = ['sbp','dbp','pulse','sbp_am','dbp_am','pulse_am','sbp_pm','dbp_pm','pulse_pm','wt','bf','vis','waist','bmr','steps','water_ml','slp','slpscore','skeletal_muscle','asm_index','lean_mass','body_water','ldl','ua','hba1c','fg','tg','hdl'];
 const QUICK_FIELDS = ['steps','water_ml','wt','slp','sbp','dbp','waist','bf','vis'];
 const GOAL_FIELDS = ['wt','sbp','dbp','ldl','ua','hba1c','steps','water_ml','slp','bf','waist'];
-const MEAL_TEXT_FIELDS = ['breakfast','lunch','dinner','snack','drink','note'];
+const MEAL_TEXT_FIELDS = ['breakfast','lunch','dinner','snack','drink','supplements','note'];
 const MEAL_FLAG_FIELDS = ['out','alcohol','fried','late'];
+const MEAL_COMMENT_FIELDS = ['breakfast','lunch','dinner','snack','supplements'];
 const DEFAULT_GOALS = {wt:83,sbp:125,dbp:80,ldl:119,ua:7.0,hba1c:5.5,steps:10000,water_ml:1500,slp:7,bf:25,waist:90};
 const BASELINE = {wt:89.2,sbp:128,ldl:179,ua:8.1,hba1c:6.1,fg:109,steps:0,slp:0};
 const METRIC_INFO = {
@@ -2304,7 +2308,15 @@ function renderMealLog(meals={}){
     const el=document.getElementById('meal-'+k);
     if(el)el.checked=!!meals[k];
   });
+  renderMealComments(meals.comments||{});
   setMealImagePreview(meals.image||'');
+}
+
+function renderMealComments(comments={}){
+  MEAL_COMMENT_FIELDS.forEach(k=>{
+    const el=document.getElementById('meal-comment-'+k);
+    if(el)el.textContent=comments[k]||'';
+  });
 }
 
 function readMealLog(){
@@ -2316,6 +2328,12 @@ function readMealLog(){
   MEAL_FLAG_FIELDS.forEach(k=>{
     if(document.getElementById('meal-'+k)?.checked)meals[k]=true;
   });
+  const comments={};
+  MEAL_COMMENT_FIELDS.forEach(k=>{
+    const val=(document.getElementById('meal-comment-'+k)?.textContent||'').trim();
+    if(val)comments[k]=val;
+  });
+  if(Object.keys(comments).length)meals.comments=comments;
   const image=document.getElementById('meal-image-data')?.value||'';
   if(image)meals.image=image;
   return meals;
@@ -2399,6 +2417,46 @@ function applyMealAnalysis(meal,slot='auto'){
   if(meal.note){
     const note=document.getElementById('meal-note');
     if(note&&!note.value.includes(meal.note))note.value=[note.value,meal.note].filter(Boolean).join('\n');
+  }
+}
+
+function mealSlotLabel(slot){
+  return {breakfast:'朝食',lunch:'昼食',dinner:'夕食',snack:'間食・夜食',supplements:'サプリ'}[slot]||slot;
+}
+
+async function analyzeMealSlot(slot){
+  const target=document.getElementById('meal-'+slot);
+  const comment=document.getElementById('meal-comment-'+slot);
+  const value=(target?.value||'').trim();
+  if(!value){if(comment)comment.textContent=`${mealSlotLabel(slot)}を先に入力してください。`;return}
+  const btn=[...document.querySelectorAll('button')].find(b=>b.getAttribute('onclick')===`analyzeMealSlot('${slot}')`);
+  try{
+    if(btn)btn.disabled=true;
+    if(comment)comment.textContent='AIが確認しています...';
+    const context={
+      date:recDateStr,
+      slot,
+      meal:value,
+      meals:readMealLog(),
+      vitals:DB[recDateStr]?.v||{},
+      goals:GOALS,
+      latest:{
+        wt:getLatestVal('wt'), sbp:getLatestVal('sbp'), dbp:getLatestVal('dbp'),
+        ldl:getLatestVal('ldl'), ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c')
+      }
+    };
+    const res=await fetch('/api/meal/comment',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(context)
+    });
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
+    if(comment)comment.textContent=data.comment||'コメントを作成できませんでした。';
+  }catch(e){
+    if(comment)comment.textContent='AIコメントを取得できませんでした: '+(e.message||'');
+  }finally{
+    if(btn)btn.disabled=false;
   }
 }
 
