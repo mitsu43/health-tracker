@@ -619,6 +619,31 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
         ざっくりでOKです。何を食べたか、外食・飲酒・揚げ物・夜食があったかを残しておくと、体重・血圧・尿酸値・HbA1cの振り返りに使えます。
       </div>
+      <div class="barcode-box" style="margin-bottom:14px">
+        <div class="form-grid" style="margin-bottom:10px">
+          <div class="form-group">
+            <label>食事写真</label>
+            <input type="file" id="meal-image-file" accept="image/*" capture="environment" onchange="readMealImage(event)">
+            <input type="hidden" id="meal-image-data">
+          </div>
+          <div class="form-group">
+            <label>食事タイミング</label>
+            <select id="meal-photo-slot" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px">
+              <option value="auto">自動判定</option>
+              <option value="breakfast">朝食</option>
+              <option value="lunch">昼食</option>
+              <option value="dinner">夕食</option>
+              <option value="snack">間食・夜食</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>写真解析</label>
+            <button type="button" class="btn btn-primary" onclick="analyzeMealImage()">Googleで食事を解析</button>
+          </div>
+        </div>
+        <div id="meal-image-preview" class="med-photo-preview"></div>
+        <div id="meal-analysis-msg" class="quick-note"></div>
+      </div>
       <div class="form-grid">
         <div class="form-group"><label>朝食</label><textarea id="meal-breakfast" rows="3" placeholder="例: ご飯、納豆、味噌汁"></textarea></div>
         <div class="form-group"><label>昼食</label><textarea id="meal-lunch" rows="3" placeholder="例: そば、サラダ"></textarea></div>
@@ -2267,6 +2292,7 @@ function renderMealLog(meals={}){
     const el=document.getElementById('meal-'+k);
     if(el)el.checked=!!meals[k];
   });
+  setMealImagePreview(meals.image||'');
 }
 
 function readMealLog(){
@@ -2278,7 +2304,90 @@ function readMealLog(){
   MEAL_FLAG_FIELDS.forEach(k=>{
     if(document.getElementById('meal-'+k)?.checked)meals[k]=true;
   });
+  const image=document.getElementById('meal-image-data')?.value||'';
+  if(image)meals.image=image;
   return meals;
+}
+
+function setMealImagePreview(src){
+  const hidden=document.getElementById('meal-image-data');
+  const preview=document.getElementById('meal-image-preview');
+  if(hidden)hidden.value=src||'';
+  if(!preview)return;
+  preview.innerHTML=src?`
+    <img src="${escapeAttr(src)}" alt="食事写真" onclick="openMealImageFromForm()">
+    <button type="button" class="med-mini-btn" onclick="clearMealImage()">削除</button>
+  `:'';
+}
+
+function openMealImageFromForm(){
+  const src=document.getElementById('meal-image-data')?.value||'';
+  openMedicationImage(src,'食事写真');
+}
+
+function clearMealImage(){
+  const file=document.getElementById('meal-image-file');
+  if(file)file.value='';
+  setMealImagePreview('');
+}
+
+async function readMealImage(event){
+  const file=event.target.files?.[0];
+  if(!file)return;
+  const msg=document.getElementById('meal-analysis-msg');
+  try{
+    if(msg)msg.textContent='写真を読み込んでいます...';
+    const src=await resizeMedicationImage(file);
+    setMealImagePreview(src);
+    if(msg)msg.textContent='写真を読み込みました。Googleで解析できます。';
+  }catch(e){
+    if(msg)msg.textContent='写真を読み込めませんでした: '+(e.message||'');
+  }
+}
+
+async function analyzeMealImage(){
+  const image=document.getElementById('meal-image-data')?.value||'';
+  const msg=document.getElementById('meal-analysis-msg');
+  if(!image){if(msg)msg.textContent='先に食事写真を選んでください。';return}
+  const slot=document.getElementById('meal-photo-slot')?.value||'auto';
+  const btn=[...document.querySelectorAll('button')].find(b=>b.getAttribute('onclick')==='analyzeMealImage()');
+  try{
+    if(btn)btn.disabled=true;
+    if(msg)msg.textContent='Googleで食事内容を解析しています...';
+    const res=await fetch('/api/meal/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({image,slot})
+    });
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
+    applyMealAnalysis(data.meal||{},slot);
+    if(msg)msg.textContent='解析結果を食事ログに反映しました。必要に応じて修正してください。';
+  }catch(e){
+    if(msg)msg.textContent='解析できませんでした: '+(e.message||'');
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+
+function applyMealAnalysis(meal,slot='auto'){
+  const fallback=meal.summary||meal.items||'';
+  if(slot&&slot!=='auto'&&fallback&&!meal[slot]){
+    meal[slot]=fallback;
+  }
+  MEAL_TEXT_FIELDS.forEach(k=>{
+    const val=meal[k];
+    const el=document.getElementById('meal-'+k);
+    if(el&&val)el.value=Array.isArray(val)?val.join('、'):String(val);
+  });
+  MEAL_FLAG_FIELDS.forEach(k=>{
+    const el=document.getElementById('meal-'+k);
+    if(el&&meal[k]!=null)el.checked=!!meal[k];
+  });
+  if(meal.note){
+    const note=document.getElementById('meal-note');
+    if(note&&!note.value.includes(meal.note))note.value=[note.value,meal.note].filter(Boolean).join('\n');
+  }
 }
 
 async function saveRec(){
