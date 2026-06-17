@@ -8,6 +8,7 @@
  *   GET  /api/day/:date → 特定日のデータを返す
  *   POST /api/goals     → 目標値を保存
  *   POST /api/meal/analyze → Geminiで食事写真を解析
+ *   POST /api/meal/comment → Geminiで食事ログにコメント
  *   POST /api/coach     → Geminiで伴走コメントを生成
  *   GET  /api/coach/logs → Gemini相談履歴を取得
  *   DELETE /api/coach/logs/:id → Gemini相談履歴を削除
@@ -124,6 +125,17 @@ async function handleAPI(request, url, method, env) {
       const slot = String(body.slot || "auto").slice(0, 20);
       const meal = await callGeminiMealImage(env, image, slot);
       return json({ ok: true, meal }, cors);
+    }
+
+    // POST /api/meal/comment — Geminiによる食事ログコメント
+    if (url.pathname === "/api/meal/comment" && method === "POST") {
+      if (!env.GEMINI_API_KEY) {
+        return json({ error: "GEMINI_API_KEY is not configured" }, cors, 500);
+      }
+
+      const body = await request.json();
+      const comment = await callGeminiMealComment(env, body || {});
+      return json({ ok: true, comment }, cors);
     }
 
     // POST /api/coach — Geminiによる伴走コメント
@@ -269,6 +281,66 @@ async function callGeminiMealImage(env, image, slot) {
         fried: !!meal.fried,
         late: !!meal.late,
       };
+    }
+
+    const errText = await res.text();
+    lastError = `Gemini API error ${res.status} on ${model}: ${errText.slice(0, 300)}`;
+    if (![429, 503].includes(res.status)) {
+      throw new Error(lastError);
+    }
+  }
+
+  throw new Error(lastError);
+}
+
+async function callGeminiMealComment(env, context) {
+  const preferredModel = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const fallbackModels = [
+    preferredModel,
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+  ].filter((model, index, all) => model && all.indexOf(model) === index);
+
+  const slot = String(context.slot || "").slice(0, 40);
+  const meal = String(context.meal || "").trim().slice(0, 1600);
+  if (!meal) throw new Error("meal is required");
+
+  const prompt = [
+    "あなたは健康管理アプリの食事ログに短いコメントを出すアシスタントです。",
+    "診断、治療判断、厳密な栄養計算はしません。見えている食事内容から、生活改善の観点で実用的にコメントしてください。",
+    "出力は日本語で、次の3行だけにしてください。",
+    "良い点: ...",
+    "改善点: ...",
+    "次回の一手: ...",
+    "血圧、尿酸値、LDL、HbA1c、体重への影響が分かる場合だけ短く触れてください。",
+    "slot が supplements の場合、効果を断定せず、服薬中の薬があるなら医師・薬剤師に確認する注意を必ず含めてください。",
+    "",
+    `対象: ${slot}`,
+    `食事/サプリ: ${meal}`,
+    "",
+    "当日の他の記録と目標(JSON):",
+    JSON.stringify(context).slice(0, 8000),
+  ].join("\n");
+
+  let lastError = "";
+  for (const model of fallbackModels) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.25,
+          maxOutputTokens: 500,
+        },
+      }),
+    });
+
+    if (res.ok) {
+      const payload = await res.json();
+      return payload.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
+        || "コメントを作成できませんでした。";
     }
 
     const errText = await res.text();
