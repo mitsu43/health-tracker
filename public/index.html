@@ -2846,6 +2846,22 @@ function getCoachTargetDate(){
   return document.getElementById('coach-target-date')?.value || todayStr;
 }
 
+function compactCoachContextForRequest(value,depth=0){
+  if(depth>10||value==null)return value;
+  if(typeof value==='string'){
+    if(/^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(value))return '[画像データは除外]';
+    return value.slice(0,4000);
+  }
+  if(typeof value!=='object')return value;
+  if(Array.isArray(value))return value.slice(0,100).map(item=>compactCoachContextForRequest(item,depth+1));
+  const compact={};
+  Object.entries(value).forEach(([key,item])=>{
+    if(/^(image|imageData|image_data|base64)$/i.test(key))return;
+    compact[key]=compactCoachContextForRequest(item,depth+1);
+  });
+  return compact;
+}
+
 function buildCoachContext(){
   const days=recentDays(30);
   const todayChecks=(today()&&today().c)||{};
@@ -2966,7 +2982,7 @@ async function askDailyReview(){
     const res=await fetch('/api/coach',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({mode:'daily_review',question:reviewQuestion,context:buildDailyReviewContext()})
+      body:JSON.stringify({mode:'daily_review',question:reviewQuestion,context:compactCoachContextForRequest(buildDailyReviewContext())})
     });
     const data=await res.json();
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
@@ -3000,7 +3016,7 @@ async function askCoach(mode){
   const res=await fetch('/api/coach',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({mode,question:q,context:buildCoachContext()})
+      body:JSON.stringify({mode,question:q,context:compactCoachContextForRequest(buildCoachContext())})
     });
     const data=await res.json();
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
