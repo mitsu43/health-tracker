@@ -147,7 +147,7 @@ async function handleAPI(request, url, method, env) {
       const body = await request.json();
       const question = String(body.question || "").trim().slice(0, 1200);
       const mode = String(body.mode || "today").slice(0, 40);
-      const context = body.context || {};
+      const context = compactCoachContext(body.context || {});
 
       if (!question) {
         return json({ error: "question is required" }, cors, 400);
@@ -195,6 +195,27 @@ async function handleAPI(request, url, method, env) {
 
 function json(data, headers, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+function compactCoachContext(value, depth = 0) {
+  if (depth > 10 || value == null) return value;
+  if (typeof value === "string") {
+    if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(value)) {
+      return "[画像データは履歴保存から除外]";
+    }
+    return value.slice(0, 4000);
+  }
+  if (typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.slice(0, 100).map((item) => compactCoachContext(item, depth + 1));
+  }
+
+  const compact = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (/^(image|imageData|image_data|base64)$/i.test(key)) continue;
+    compact[key] = compactCoachContext(item, depth + 1);
+  }
+  return compact;
 }
 
 function parseDataUrlImage(image) {
