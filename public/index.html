@@ -194,6 +194,11 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .med-photo-preview img{width:120px;max-height:120px;object-fit:cover;border:1px solid var(--border);border-radius:8px;background:var(--bg2);cursor:zoom-in}
 .meal-ai-comment{margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.7;color:var(--text2);white-space:pre-wrap}
 .meal-ai-comment:empty{display:none}
+.meal-ai-actions{display:flex;justify-content:flex-end;margin-top:6px}
+.meal-ai-delete{border:1px solid rgba(192,57,43,0.25);background:transparent;color:var(--danger);border-radius:999px;padding:4px 9px;font-size:11px;cursor:pointer}
+.meal-ai-delete:hover{background:var(--danger-dim)}
+.meal-analysis-saved{margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.7;color:var(--text2);white-space:pre-wrap}
+.meal-analysis-saved:empty{display:none}
 .image-modal{position:fixed;inset:0;background:rgba(20,18,16,0.74);display:none;align-items:center;justify-content:center;z-index:1000;padding:24px}
 .image-modal.active{display:flex}
 .image-modal-inner{max-width:min(96vw,980px);max-height:92vh;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:0 20px 60px rgba(0,0,0,0.25)}
@@ -591,6 +596,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
             <label>食事写真</label>
             <input type="file" id="meal-image-file" accept="image/*" capture="environment" onchange="readMealImage(event)">
             <input type="hidden" id="meal-image-data">
+            <input type="hidden" id="meal-analysis-data">
           </div>
           <div class="form-group">
             <label>食事タイミング</label>
@@ -608,6 +614,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
           </div>
         </div>
         <div id="meal-image-preview" class="med-photo-preview"></div>
+        <div id="meal-analysis-saved" class="meal-analysis-saved"></div>
         <div id="meal-analysis-msg" class="quick-note"></div>
       </div>
     </div>
@@ -2314,12 +2321,23 @@ function renderMealLog(meals={}){
   });
   renderMealComments(meals.comments||{});
   setMealImagePreview(meals.image||'');
+  setMealAnalysisResult(meals.photoAnalysis||null);
 }
 
 function renderMealComments(comments={}){
   MEAL_COMMENT_FIELDS.forEach(k=>{
     const el=document.getElementById('meal-comment-'+k);
-    if(el)el.textContent=comments[k]||'';
+    if(!el)return;
+    el.textContent=comments[k]||'';
+    let actions=document.getElementById('meal-comment-actions-'+k);
+    if(!actions){
+      actions=document.createElement('div');
+      actions.id='meal-comment-actions-'+k;
+      actions.className='meal-ai-actions';
+      actions.innerHTML=`<button type="button" class="meal-ai-delete" onclick="deleteMealComment('${k}')">このAIコメントを削除</button>`;
+      el.insertAdjacentElement('afterend',actions);
+    }
+    actions.style.display=comments[k]?'flex':'none';
   });
 }
 
@@ -2340,6 +2358,10 @@ function readMealLog(){
   if(Object.keys(comments).length)meals.comments=comments;
   const image=document.getElementById('meal-image-data')?.value||'';
   if(image)meals.image=image;
+  try{
+    const analysis=JSON.parse(document.getElementById('meal-analysis-data')?.value||'null');
+    if(analysis)meals.photoAnalysis=analysis;
+  }catch{}
   return meals;
 }
 
@@ -2359,10 +2381,48 @@ function openMealImageFromForm(){
   openMedicationImage(src,'食事写真');
 }
 
-function clearMealImage(){
+async function clearMealImage(){
   const file=document.getElementById('meal-image-file');
   if(file)file.value='';
   setMealImagePreview('');
+  await persistRecordForm();
+  setMealStatus('食事写真を削除して保存しました。');
+}
+
+function setMealAnalysisResult(analysis){
+  const hidden=document.getElementById('meal-analysis-data');
+  const el=document.getElementById('meal-analysis-saved');
+  if(hidden)hidden.value=analysis?JSON.stringify(analysis):'';
+  if(!el)return;
+  if(!analysis){el.innerHTML='';return}
+  const when=analysis.analyzedAt?`解析日時: ${analysis.analyzedAt}\n`:'';
+  const slotText=mealSlotLabel(analysis.slot||'auto');
+  el.innerHTML=`${escapeHTML(`${when}対象: ${slotText}\n${analysis.summary||'解析結果を食事欄へ反映しました。'}`)}
+    <div class="meal-ai-actions"><button type="button" class="meal-ai-delete" onclick="deleteMealPhotoAnalysis()">写真と解析結果を削除</button></div>`;
+}
+
+async function deleteMealPhotoAnalysis(){
+  if(!confirm('この食事写真と保存済みの写真解析結果を削除しますか？\n食事欄へ反映済みの文章は残します。'))return;
+  const file=document.getElementById('meal-image-file');
+  if(file)file.value='';
+  setMealImagePreview('');
+  setMealAnalysisResult(null);
+  await persistRecordForm();
+  setMealStatus('食事写真と解析結果を削除しました。');
+}
+
+async function deleteMealComment(slot){
+  if(!confirm(`${mealSlotLabel(slot)}のAIコメントを削除しますか？`))return;
+  const el=document.getElementById('meal-comment-'+slot);
+  if(el)el.textContent='';
+  renderMealComments(readMealLog().comments||{});
+  await persistRecordForm();
+  setMealStatus(`${mealSlotLabel(slot)}のAIコメントを削除しました。`);
+}
+
+function setMealStatus(text){
+  const msg=document.getElementById('meal-analysis-msg');
+  if(msg)msg.textContent=text;
 }
 
 async function readMealImage(event){
@@ -2373,7 +2433,8 @@ async function readMealImage(event){
     if(msg)msg.textContent='写真を読み込んでいます...';
     const src=await resizeMedicationImage(file);
     setMealImagePreview(src);
-    if(msg)msg.textContent='写真を読み込みました。Googleで解析できます。';
+    await persistRecordForm();
+    if(msg)msg.textContent='写真を自動保存しました。Googleで解析できます。';
   }catch(e){
     if(msg)msg.textContent='写真を読み込めませんでした: '+(e.message||'');
   }
@@ -2396,7 +2457,14 @@ async function analyzeMealImage(){
     const data=await res.json();
     if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
     applyMealAnalysis(data.meal||{},slot);
-    if(msg)msg.textContent='解析結果を食事ログに反映しました。必要に応じて修正してください。';
+    setMealAnalysisResult({
+      slot,
+      summary:data.meal?.summary||data.meal?.note||'解析結果を食事欄へ反映しました。',
+      result:data.meal||{},
+      analyzedAt:new Date().toLocaleString('ja-JP')
+    });
+    await persistRecordForm();
+    if(msg)msg.textContent='解析結果を食事ログに反映し、自動保存しました。';
   }catch(e){
     if(msg)msg.textContent='解析できませんでした: '+(e.message||'');
   }finally{
@@ -2460,6 +2528,9 @@ async function analyzeMealSlot(slot){
     const data=await res.json();
     if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
     if(comment)comment.textContent=data.comment||'コメントを作成できませんでした。';
+    renderMealComments(readMealLog().comments||{});
+    await persistRecordForm();
+    setMealStatus(`${mealSlotLabel(slot)}のAIコメントを自動保存しました。`);
   }catch(e){
     if(comment)comment.textContent='AIコメントを取得できませんでした: '+(e.message||'');
   }finally{
@@ -2467,7 +2538,7 @@ async function analyzeMealSlot(slot){
   }
 }
 
-async function saveRec(){
+async function persistRecordForm(){
   if(!DB[recDateStr])DB[recDateStr]={c:{},v:{}};
   const v={...(DB[recDateStr].v||{})};
   VITAL_FIELDS.forEach(k=>{
@@ -2479,6 +2550,10 @@ async function saveRec(){
   else delete v.meals;
   DB[recDateStr].v=v;
   await saveDay(recDateStr);
+}
+
+async function saveRec(){
+  await persistRecordForm();
   const msg=document.getElementById('save-msg');
   msg.textContent='✅ 保存しました';
   setTimeout(()=>msg.textContent='',2500);
