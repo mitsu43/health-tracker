@@ -357,6 +357,13 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 .quick-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .quick-note{font-size:12px;color:var(--text2);line-height:1.6}
+.quick-details{margin-bottom:16px}
+.quick-details summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:700;color:var(--text);padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+.quick-details summary::-webkit-details-marker{display:none}
+.quick-details summary::after{content:'＋';font-family:'DM Mono',monospace;color:var(--text2);font-size:16px}
+.quick-details[open] summary{border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.quick-details[open] summary::after{content:'−'}
+.quick-details-body{background:var(--bg2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);padding:16px 18px;box-shadow:var(--shadow)}
 
 @media(max-width:900px){
   body{font-size:16px;line-height:1.75}
@@ -452,7 +459,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="nav-section">見る・分析</div>
     <div class="nav-item" onclick="sw('analysis')"><span class="nav-icon">🔍</span><span>問題を発見</span></div>
     <div class="nav-item" onclick="sw('impact')"><span class="nav-icon">🔗</span><span>影響マップ</span></div>
-    <div class="nav-item" onclick="sw('sim')"><span class="nav-icon">⚠️</span><span>サボり影響</span></div>
+    <div class="nav-item" onclick="sw('sim')" style="display:none"><span class="nav-icon">⚠️</span><span>サボり影響</span></div>
     <div class="nav-item" onclick="sw('trends')"><span class="nav-icon">📈</span><span>トレンド</span></div>
     <div class="nav-item" onclick="sw('history')"><span class="nav-icon">📅</span><span>達成履歴</span></div>
   </nav>
@@ -472,8 +479,9 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div class="progress" style="height:4px;margin-bottom:20px"><div class="progress-fill" id="main-prog" style="width:0%;background:var(--accent)"></div></div>
     <div id="alert-zone" style="margin-bottom:16px"></div>
     <div class="kpi-grid" id="kpi-row"></div>
-    <div class="card">
-      <div class="card-title">途中入力（今日の現在値）</div>
+    <details class="quick-details">
+      <summary>途中入力（今日の現在値）</summary>
+      <div class="quick-details-body">
       <div class="quick-note" style="margin-bottom:10px">歩数や水分は、日の終わりを待たずに途中で何度でも更新できます。保存すると今日の記録に上書きされます。</div>
       <div class="quick-grid">
         <div class="form-group"><label>現在の歩数</label><input type="number" id="q-steps" placeholder="例 4500"></div>
@@ -489,9 +497,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <button class="btn btn-primary" onclick="saveQuickVitals()">途中経過を保存</button>
         <span id="quick-save-msg" class="quick-note"></span>
       </div>
-    </div>
+      </div>
+    </details>
     <div id="daily-diagnosis" class="day-diagnosis"></div>
-    <div class="card">
+    <div class="card" style="display:none">
       <div class="card-title">+1,000歩シミュレーター</div>
       <div class="quick-note" style="margin-bottom:10px">
         1,000歩ずつ増やした場合の今日の到達率を見ます。効果は推定で、LDL・HbA1c・体重・血圧の改善行動として評価します。
@@ -523,10 +532,9 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div class="time-grid" id="time-summary"></div>
-    <div id="nikkei-learning-body"></div>
     <div id="metric-routine-body"></div>
-    <div id="office-plan-body"></div>
     <div id="routine-body"></div>
+    <div id="office-plan-body"></div>
   </div>
 </div>
 
@@ -771,7 +779,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 </div>
 
 <!-- SIMULATOR -->
-<div id="page-sim" class="page">
+<div id="page-sim" class="page" style="display:none">
   <div class="topbar"><div class="page-title">⚠️ サボり影響シミュレーター</div></div>
   <div style="padding:0 32px">
     <div style="margin-bottom:16px;font-size:13px;color:var(--text2)">チェックが入っていない項目を何日続けたら検査値がどう変化するか推定します。</div>
@@ -993,6 +1001,14 @@ const ROUTINES = [
   {id:'hourly_walk',cat:'exercise', label:'500歩×4セット（合計2,000歩）',
    why:'午前・昼食後・午後・夕方など、都合のよい4回に分けて歩く。連続して座る時間を減らし、食後血糖と血圧への負担を抑える。',
    affects:{hba1c:10,bp:5}, skipRate:{hba1c:0.01}, tags:['hba1c','bp']},
+  {id:'telework_housework',cat:'exercise', label:'テレワーク家事運動 5分×3セット',
+   why:'仕事の区切りに立って家事を行い、座りっぱなしを中断する。掃除や洗濯物の運搬など、立って全身を動かす家事を合計15分行う。',
+   detailPlan:[
+     ['1セット目','午前：掃除機、床拭き、風呂掃除のどれかを5分'],
+     ['2セット目','昼：洗濯物を運ぶ・干す・取り込む、または台所を5分片づける'],
+     ['3セット目','午後：部屋を歩いて物を10個片づける、階段移動、ゴミ集めのどれかを5分']
+   ],
+   affects:{ldl:5,hba1c:7,weight:7,bp:4}, skipRate:{hba1c:0.006,weight:0.02,bp:0.15}, tags:['ldl','hba1c','weight','bp']},
   {id:'water_15',  cat:'diet', label:'水・お茶1.5L以上',
    why:'尿量が増えると尿酸の排泄が増加。1日2L確保で尿酸値0.5〜1.0程度改善が期待できる。',
    affects:{ua:25,bp:10}, skipRate:{ua:0.08,bp:0.4}, tags:['ua','bp']},
@@ -1050,12 +1066,14 @@ const ROUTINES = [
   {id:'longevity_social', cat:'longevity', label:'誰かと一言つながる',
    why:'孤立を避けることは長く健康に暮らす土台。家族・友人・同僚への一言、挨拶、短い連絡で十分。',
    affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
-  {id:'longevity_purpose', cat:'longevity', label:'日経マップ学習：記事3本・クイズ2問・重要語6語',
-   why:'日経記事マップと連携し、読んだ記事・確認したクイズ・記事から抽出した重要語を本日の成果として残す。',
+  {id:'longevity_purpose', cat:'longevity', label:'学び・趣味・役割10分＋成果1つ',
+   why:'10分取り組むだけでなく、下の数値目標から1つ達成したら完了。毎日小さな成果を残し、脳と気持ちを使う。',
    detailPlan:[
-     ['読書','日経マップで異なる記事を3本開く'],
-     ['理解','記事内の理解度確認クイズを2問確認する'],
-     ['語学','読んだ記事の重要語を6語抽出して成果に残す']
+     ['読書','5ページ読む＋要点を1行メモ'],
+     ['語学','新しい単語10個＋例文3つ'],
+     ['趣味','作品・練習を10分＋写真または記録1つ'],
+     ['片づけ','物を10個片づける、または引き出し1段を整理'],
+     ['役割','家事1件、連絡1件、または誰かを助ける作業1件']
    ],
    affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
 ];
@@ -1077,6 +1095,7 @@ const ACTIVITY_TARGETS = {
   squat:'夕方まで: 20回',
   pushup:'夕方まで: 15回',
   hourly_walk:'1回500歩 × 4セット（合計2,000歩）',
+  telework_housework:'5分 × 3セット（合計15分）',
   water_15:'1日合計: 1.5L以上',
   no_fried:'昼・夜: 揚げ物ゼロ',
   chew_well:'毎食: 20回以上噛む',
@@ -1092,13 +1111,13 @@ const ACTIVITY_TARGETS = {
   longevity_strength:'1分×10工程（合計10分）',
   longevity_oral:'夜: 歯間ケアまで',
   longevity_social:'1日1回: 誰かと接点',
-  longevity_purpose:'記事3本＋クイズ2問＋重要語6語'
+  longevity_purpose:'10分＋数値目標を1つ達成'
 };
 
 const TIME_BLOCKS = [
   {key:'am', label:'朝9時まで', target:'起床後の土台', ids:['water_am','bp_meas','walk_am','veg_first','longevity_purpose']},
   {key:'noon', label:'昼12時', target:'食事と水分', ids:['veg_first','water_15','chew_well','seaweed','fish','no_snack']},
-  {key:'pm', label:'夕3時', target:'活動量の帳尻', ids:['steps_10k','squat','pushup','hourly_walk','water_15','longevity_strength','longevity_social']},
+  {key:'pm', label:'夕3時', target:'活動量の帳尻', ids:['steps_10k','squat','pushup','hourly_walk','telework_housework','water_15','longevity_strength','longevity_social']},
   {key:'night', label:'夜', target:'悪化を止める', ids:['light_din','no_alc','no_eat_20','sleep7','no_fried','longevity_oral']}
 ];
 
@@ -1665,11 +1684,7 @@ function decodeNikkeiHash(){
   }
 }
 
-window.addEventListener('message',event=>{
-  if(event.origin!=='https://nikkei-map.pages.dev')return;
-  importNikkeiLearning(event.data);
-});
-window.addEventListener('hashchange',decodeNikkeiHash);
+// 日経マップ連携は現在休止中。再開時はmessage/hashchange登録と表示欄を戻す。
 
 function renderMetricRoutines(){
   const el=document.getElementById('metric-routine-body');
@@ -1763,9 +1778,7 @@ function renderTodayDashboard(){
   renderDailyScore();
   renderPriority();
   renderTimeSummary();
-  renderNikkeiLearning();
   renderMetricRoutines();
-  renderStepIncrement();
   renderOfficePlan();
   renderDayDiagnosis();
 }
@@ -3823,7 +3836,6 @@ window.addEventListener('DOMContentLoaded',async ()=>{
   initSidebar();
   document.getElementById('today-label').textContent=fmtJP(todayStr);
   await loadDB();
-  decodeNikkeiHash();
   renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
   startOnlineRetry();
 });
