@@ -1091,13 +1091,29 @@ function getPending(){ try{return JSON.parse(localStorage.getItem(PENDING_KEY)||
 function addPending(p){ const q=getPending(); q.push(p); localStorage.setItem(PENDING_KEY,JSON.stringify(q)) }
 function clearPending(){ localStorage.removeItem(PENDING_KEY) }
 
+async function readApiJson(res){
+  const text=await res.text();
+  try{
+    return text?JSON.parse(text):{};
+  }catch{
+    const isHtml=/^\s*<!doctype html|^\s*<html/i.test(text);
+    if(isHtml){
+      const localHint=location.protocol==='file:'
+        ? 'ローカルファイルではなくCloudflareの公開URLで開いてください。'
+        : 'Cloudflare Workerを再デプロイし、/api/*がWorkerへ向く設定を確認してください。';
+      throw new Error('APIではなくHTMLが返されました。'+localHint);
+    }
+    throw new Error(`APIの応答を読み取れませんでした（HTTP ${res.status}）。`);
+  }
+}
+
 // 起動時に全データをAPIから取得してDB/GOALSに展開
 async function loadDB(){
   setStatus('loading','データを読み込んでいます...');
   try{
     const res = await fetch('/api/data');
     if(!res.ok) throw new Error('HTTP '+res.status);
-    const payload = await res.json();
+    const payload = await readApiJson(res);
     DB    = payload.db    || {};
     GOALS = {...DEFAULT_GOALS, ...(payload.goals||{})};
     // オフライン中に溜まった書き込みをフラッシュ
@@ -1128,7 +1144,7 @@ async function syncOnlineNow(showMessage=true){
     if(showMessage)setStatus('loading','オンライン接続を確認しています...');
     const res = await fetch('/api/data',{cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status);
-    const payload = await res.json();
+    const payload = await readApiJson(res);
     DB    = payload.db    || {};
     GOALS = {...DEFAULT_GOALS, ...(payload.goals||{})};
     await flushPending();
@@ -2454,7 +2470,7 @@ async function analyzeMealImage(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({image,slot})
     });
-    const data=await res.json();
+    const data=await readApiJson(res);
     if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
     applyMealAnalysis(data.meal||{},slot);
     setMealAnalysisResult({
@@ -2525,7 +2541,7 @@ async function analyzeMealSlot(slot){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(context)
     });
-    const data=await res.json();
+    const data=await readApiJson(res);
     if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
     if(comment)comment.textContent=data.comment||'コメントを作成できませんでした。';
     renderMealComments(readMealLog().comments||{});
@@ -2984,7 +3000,7 @@ async function askDailyReview(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({mode:'daily_review',question:reviewQuestion,context:compactCoachContextForRequest(buildDailyReviewContext())})
     });
-    const data=await res.json();
+    const data=await readApiJson(res);
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     ans.textContent=data.answer;
     msg.textContent='明日のプランを作成しました（履歴に保存済み）';
@@ -3018,7 +3034,7 @@ async function askCoach(mode){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({mode,question:q,context:compactCoachContextForRequest(buildCoachContext())})
     });
-    const data=await res.json();
+    const data=await readApiJson(res);
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     ans.textContent=data.answer;
     msg.textContent='回答しました（履歴に保存済み）';
@@ -3045,7 +3061,7 @@ async function loadCoachLogs(){
   el.textContent='履歴を読み込んでいます...';
   try{
     const res=await fetch('/api/coach/logs');
-    const data=await res.json();
+    const data=await readApiJson(res);
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     const logs=data.logs||[];
     if(!logs.length){
@@ -3216,7 +3232,7 @@ async function deleteCoachLog(id){
   if(!confirm('この相談履歴を削除しますか？\n途中で切れた回答などを整理できます。'))return;
   try{
     const res=await fetch('/api/coach/logs/'+id,{method:'DELETE'});
-    const data=await res.json();
+    const data=await readApiJson(res);
     if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
     await loadCoachLogs();
   }catch(e){
