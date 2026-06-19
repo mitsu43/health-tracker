@@ -123,6 +123,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .item-body{flex:1;min-width:0}
 .item-title{font-size:14px;color:var(--text);margin-bottom:3px;font-weight:700}
 .item-why{font-size:12px;color:var(--text2);line-height:1.6}
+.routine-detail-plan{margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.routine-detail-row{display:grid;grid-template-columns:54px minmax(0,1fr);gap:8px;padding:4px 0;border-top:1px solid var(--border);font-size:11px;line-height:1.55;color:var(--text2)}
+.routine-detail-row:first-child{border-top:none}
+.routine-detail-step{font-family:'DM Mono',monospace;font-weight:700;color:var(--accent)}
 .item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
 .score-pill{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-dim);color:var(--accent);font-weight:700}
 .tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
@@ -973,8 +977,8 @@ const ROUTINES = [
   {id:'pushup',    cat:'exercise', label:'膝付き腕立て15回',
    why:'上半身筋肉でインスリン感受性改善。血糖の筋肉への取り込みを促進。',
    affects:{hba1c:6,weight:5}, skipRate:{hba1c:0.006}, tags:['hba1c','weight']},
-  {id:'hourly_walk',cat:'exercise', label:'毎時間1,000歩（デスクワーク中）',
-   why:'長時間座位は食後血糖を急上昇させる。1時間ごとに動くだけで食後血糖を18%抑制。',
+  {id:'hourly_walk',cat:'exercise', label:'500歩×4セット（合計2,000歩）',
+   why:'午前・昼食後・午後・夕方など、都合のよい4回に分けて歩く。連続して座る時間を減らし、食後血糖と血圧への負担を抑える。',
    affects:{hba1c:10,bp:5}, skipRate:{hba1c:0.01}, tags:['hba1c','bp']},
   {id:'water_15',  cat:'diet', label:'水・お茶1.5L以上',
    why:'尿量が増えると尿酸の排泄が増加。1日2L確保で尿酸値0.5〜1.0程度改善が期待できる。',
@@ -1014,6 +1018,18 @@ const ROUTINES = [
    affects:{hb:14,ht:12}, skipRate:{}, tags:['hb','ht']},
   {id:'longevity_strength', cat:'longevity', label:'筋力・バランス10分',
    why:'百歳まで自分の足で動く土台。筋トレと片足立ち・かかと上げで転倒予防、血糖消費、フレイル予防を同時に狙う。',
+   detailPlan:[
+     ['1分目','その場でゆっくり足踏み。腕も軽く振る'],
+     ['2分目','椅子スクワット。座る直前まで腰を下げて立つ動作を繰り返す'],
+     ['3分目','かかと上げ。椅子に手を添え、ゆっくり上げ下げする'],
+     ['4分目','左足で片足立ち。椅子や壁に指を添えて安全を優先する'],
+     ['5分目','右足で片足立ち。椅子や壁に指を添えて安全を優先する'],
+     ['6分目','横歩き。左右へ3歩ずつ、膝とつま先を同じ方向にする'],
+     ['7分目','壁腕立て。壁に手をつき、胸を近づけて戻す'],
+     ['8分目','つぎ足立ち。片足のかかとを反対のつま先につけ、途中で前後を交換する'],
+     ['9分目','椅子から立つ・座るをゆっくり反復する'],
+     ['10分目','ふくらはぎ・太ももを軽く伸ばし、深呼吸して終了する']
+   ],
    affects:{hba1c:8,weight:8,bp:5}, skipRate:{hba1c:0.006,weight:0.02,bp:0.2}, tags:['hba1c','weight','bp']},
   {id:'longevity_oral', cat:'longevity', label:'歯みがき＋歯間ケア',
    why:'口腔ケアは食べる力を守る基礎。歯ぐきの炎症・噛む力の低下を防ぎ、将来の低栄養や血糖悪化を遠ざける。',
@@ -1021,8 +1037,15 @@ const ROUTINES = [
   {id:'longevity_social', cat:'longevity', label:'誰かと一言つながる',
    why:'孤立を避けることは長く健康に暮らす土台。家族・友人・同僚への一言、挨拶、短い連絡で十分。',
    affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
-  {id:'longevity_purpose', cat:'longevity', label:'学び・趣味・役割を10分',
-   why:'脳と気持ちを使う時間を毎日残す。読書、語学、片づけ、誰かの役に立つ作業など、小さな目的でOK。',
+  {id:'longevity_purpose', cat:'longevity', label:'学び・趣味・役割10分＋成果1つ',
+   why:'10分取り組むだけでなく、下の数値目標から1つ達成したら完了。毎日小さな成果を残し、脳と気持ちを使う。',
+   detailPlan:[
+     ['読書','5ページ読む＋要点を1行メモ'],
+     ['語学','新しい単語10個＋例文3つ'],
+     ['趣味','作品・練習を10分＋写真または記録1つ'],
+     ['片づけ','物を10個片づける、または引き出し1段を整理'],
+     ['役割','家事1件、連絡1件、または誰かを助ける作業1件']
+   ],
    affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
 ];
 
@@ -1042,7 +1065,7 @@ const ACTIVITY_TARGETS = {
   steps_10k:'1日合計: 10,000歩',
   squat:'夕方まで: 20回',
   pushup:'夕方まで: 15回',
-  hourly_walk:'昼間: 1時間ごとに1,000歩',
+  hourly_walk:'1回500歩 × 4セット（合計2,000歩）',
   water_15:'1日合計: 1.5L以上',
   no_fried:'昼・夜: 揚げ物ゼロ',
   chew_well:'毎食: 20回以上噛む',
@@ -1055,10 +1078,10 @@ const ACTIVITY_TARGETS = {
   sleep7:'夜: 7時間以上',
   iron_protein:'朝・昼・夜のどこか1食',
   iron_vitc:'鉄を含む食事と同時に',
-  longevity_strength:'夕方まで: 10分',
+  longevity_strength:'1分×10工程（合計10分）',
   longevity_oral:'夜: 歯間ケアまで',
   longevity_social:'1日1回: 誰かと接点',
-  longevity_purpose:'1日10分: 学び/趣味/役割'
+  longevity_purpose:'10分＋数値目標を1つ達成'
 };
 
 const TIME_BLOCKS = [
@@ -1072,7 +1095,7 @@ const OFFICE_PLAN = [
   {id:'office_bike_commute', time:'出社・帰宅', label:'電動自転車通勤 往復15.6km', target:'片道7.8kmだけでもOK / 往復で標準達成', why:'電動でも通勤に組み込める継続運動。脚を使い、朝と帰宅時に活動量を底上げできる。', tags:['ldl','hba1c','weight','bp']},
   {id:'office_stairs', time:'午前', label:'エレベーターを避けて階段を合計5階分', target:'合計5階', why:'短時間で心拍を上げられる。脚の筋肉を使うため血糖消費に向く。', tags:['hba1c','weight']},
   {id:'office_lunch_walk', time:'昼休み', label:'昼食後に10分歩く', target:'10分', why:'食後血糖の上昇を抑えやすく、午後の眠気対策にもなる。', tags:['hba1c','bp']},
-  {id:'office_hourly_stand', time:'勤務中', label:'1時間ごとに立つ/フロアを1周', target:'4回以上', why:'座りっぱなしを切るだけでも血糖・血圧への負担を下げやすい。', tags:['hba1c','bp']},
+  {id:'office_hourly_stand', time:'勤務中', label:'フロア300歩×4セット', target:'合計1,200歩', why:'午前・昼食後・午後・退勤前など4回に分け、座りっぱなしを切って血糖・血圧への負担を下げる。', tags:['hba1c','bp']},
   {id:'office_desk_squat', time:'午後', label:'トイレや給湯室のついでにスクワット10回', target:'2セット', why:'人目が少ない場所で短くできる筋トレ。基礎代謝と血糖消費の補助。', tags:['hba1c','weight']},
   {id:'office_no_sweet_drink', time:'終日', label:'甘い飲み物を避けて水/お茶にする', target:'水分1.5Lの一部', why:'オフィスで増えやすい糖質を抑え、水分量も確保できる。', tags:['hba1c','ua','weight']}
 ];
@@ -1715,11 +1738,15 @@ function renderRoutine(){
     items.forEach(r=>{
       const chk=!!c[r.id];
       const tagHtml=r.tags.map(t=>`<span class="tag tag-${t}">${{ldl:'LDL',ua:'尿酸',hba1c:'HbA1c',bp:'血圧',hb:'Hb',ht:'Ht',weight:'体重',sleep:'睡眠'}[t]||t}</span>`).join('');
+      const detailHtml=Array.isArray(r.detailPlan)?`<div class="routine-detail-plan">${r.detailPlan.map(([step,text])=>`
+        <div class="routine-detail-row"><div class="routine-detail-step">${step}</div><div>${text}</div></div>
+      `).join('')}</div>`:'';
       html+=`<div class="check-item${chk?' checked':''}" onclick="tog('${r.id}')">
         <div class="checkbox">${chk?'<span class="check-mark">✓</span>':''}</div>
         <div class="item-body">
           <div class="item-title">${r.label}</div>
           <div class="item-why">${r.why}</div>
+          ${detailHtml}
           <div class="item-meta">
             <span class="score-pill">目標 ${ACTIVITY_TARGETS[r.id]||'今日中'}</span>
             <span class="score-pill">改善 ${Object.values(r.affects||{}).reduce((s,v)=>s+v,0)}点</span>
