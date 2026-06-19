@@ -127,6 +127,17 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .routine-detail-row{display:grid;grid-template-columns:54px minmax(0,1fr);gap:8px;padding:4px 0;border-top:1px solid var(--border);font-size:11px;line-height:1.55;color:var(--text2)}
 .routine-detail-row:first-child{border-top:none}
 .routine-detail-step{font-family:'DM Mono',monospace;font-weight:700;color:var(--accent)}
+.nikkei-learning-card{background:var(--bg2);border:1px solid var(--border);border-top:3px solid #b8000a;border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.nikkei-learning-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.nikkei-learning-title{font-size:14px;font-weight:700;color:var(--text)}
+.nikkei-learning-date{font-size:11px;color:var(--text3);margin-top:2px}
+.nikkei-learning-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.nikkei-learning-stat{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 10px}
+.nikkei-learning-stat-label{font-size:10px;color:var(--text3)}
+.nikkei-learning-stat-value{font-family:'DM Mono',monospace;font-size:17px;font-weight:700;color:var(--text);margin-top:2px}
+.nikkei-learning-list{font-size:12px;color:var(--text2);line-height:1.65;margin-top:8px}
+.nikkei-learning-keywords{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.nikkei-learning-keyword{font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(184,0,10,.08);color:#9b1118}
 .item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
 .score-pill{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-dim);color:var(--accent);font-weight:700}
 .tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
@@ -370,6 +381,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .chart-grid,.two-col{grid-template-columns:1fr}
   .coach-summary-grid,.time-grid,.quick-grid{grid-template-columns:1fr}
   .metric-routine-grid{grid-template-columns:1fr}
+  .nikkei-learning-grid{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
   .coach-log-filter{grid-template-columns:1fr}
   .med-matrix{min-width:680px}
@@ -511,6 +523,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div class="time-grid" id="time-summary"></div>
+    <div id="nikkei-learning-body"></div>
     <div id="metric-routine-body"></div>
     <div id="office-plan-body"></div>
     <div id="routine-body"></div>
@@ -1037,14 +1050,12 @@ const ROUTINES = [
   {id:'longevity_social', cat:'longevity', label:'誰かと一言つながる',
    why:'孤立を避けることは長く健康に暮らす土台。家族・友人・同僚への一言、挨拶、短い連絡で十分。',
    affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
-  {id:'longevity_purpose', cat:'longevity', label:'学び・趣味・役割10分＋成果1つ',
-   why:'10分取り組むだけでなく、下の数値目標から1つ達成したら完了。毎日小さな成果を残し、脳と気持ちを使う。',
+  {id:'longevity_purpose', cat:'longevity', label:'日経マップ学習：記事3本・クイズ2問・重要語6語',
+   why:'日経記事マップと連携し、読んだ記事・確認したクイズ・記事から抽出した重要語を本日の成果として残す。',
    detailPlan:[
-     ['読書','5ページ読む＋要点を1行メモ'],
-     ['語学','新しい単語10個＋例文3つ'],
-     ['趣味','作品・練習を10分＋写真または記録1つ'],
-     ['片づけ','物を10個片づける、または引き出し1段を整理'],
-     ['役割','家事1件、連絡1件、または誰かを助ける作業1件']
+     ['読書','日経マップで異なる記事を3本開く'],
+     ['理解','記事内の理解度確認クイズを2問確認する'],
+     ['語学','読んだ記事の重要語を6語抽出して成果に残す']
    ],
    affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
 ];
@@ -1081,7 +1092,7 @@ const ACTIVITY_TARGETS = {
   longevity_strength:'1分×10工程（合計10分）',
   longevity_oral:'夜: 歯間ケアまで',
   longevity_social:'1日1回: 誰かと接点',
-  longevity_purpose:'10分＋数値目標を1つ達成'
+  longevity_purpose:'記事3本＋クイズ2問＋重要語6語'
 };
 
 const TIME_BLOCKS = [
@@ -1541,6 +1552,125 @@ function renderTimeSummary(){
   }).join('');
 }
 
+const NIKKEI_GOALS={articles:3,quizzes:2,keywords:6};
+
+function getNikkeiLearning(){
+  return today().v?.nikkeiLearning||{date:todayStr,articles:[],quizzes:[],keywords:[]};
+}
+
+function uniqueNikkeiItems(items,key='id'){
+  const seen=new Set();
+  return (Array.isArray(items)?items:[]).filter(item=>{
+    const value=typeof item==='string'?item:(item?.[key]||item?.title||JSON.stringify(item));
+    if(!value||seen.has(value))return false;
+    seen.add(value);
+    return true;
+  });
+}
+
+function nikkeiLearningComplete(data){
+  return (data.articles?.length||0)>=NIKKEI_GOALS.articles
+    && (data.quizzes?.length||0)>=NIKKEI_GOALS.quizzes
+    && (data.keywords?.length||0)>=NIKKEI_GOALS.keywords;
+}
+
+function renderNikkeiLearning(){
+  const el=document.getElementById('nikkei-learning-body');
+  if(!el)return;
+  const data=getNikkeiLearning();
+  const articles=uniqueNikkeiItems(data.articles);
+  const quizzes=uniqueNikkeiItems(data.quizzes);
+  const keywords=uniqueNikkeiItems(data.keywords,'text').map(item=>typeof item==='string'?item:item.text).filter(Boolean);
+  const complete=nikkeiLearningComplete({articles,quizzes,keywords});
+  const articleTitles=articles.map(item=>typeof item==='string'?item:item.title).filter(Boolean);
+  el.innerHTML=`<div class="nikkei-learning-card">
+    <div class="nikkei-learning-head">
+      <div>
+        <div class="nikkei-learning-title">日経マップ 読書・語学成果</div>
+        <div class="nikkei-learning-date">${fmtJP(todayStr)} ${complete?'・達成済み':'・進行中'}</div>
+      </div>
+      <span class="badge ${complete?'badge-ok':'badge-warn'}">${complete?'ノルマ達成':'未達成'}</span>
+    </div>
+    <div class="nikkei-learning-grid">
+      <div class="nikkei-learning-stat"><div class="nikkei-learning-stat-label">読んだ記事</div><div class="nikkei-learning-stat-value">${articles.length}/${NIKKEI_GOALS.articles}本</div></div>
+      <div class="nikkei-learning-stat"><div class="nikkei-learning-stat-label">クイズ確認</div><div class="nikkei-learning-stat-value">${quizzes.length}/${NIKKEI_GOALS.quizzes}問</div></div>
+      <div class="nikkei-learning-stat"><div class="nikkei-learning-stat-label">重要語</div><div class="nikkei-learning-stat-value">${keywords.length}/${NIKKEI_GOALS.keywords}語</div></div>
+    </div>
+    <div class="progress"><div class="progress-fill" style="width:${Math.min(100,Math.round(((Math.min(articles.length,NIKKEI_GOALS.articles)/NIKKEI_GOALS.articles)+(Math.min(quizzes.length,NIKKEI_GOALS.quizzes)/NIKKEI_GOALS.quizzes)+(Math.min(keywords.length,NIKKEI_GOALS.keywords)/NIKKEI_GOALS.keywords))/3*100))}%;background:${complete?'var(--ok)':'#b8000a'}"></div></div>
+    ${articleTitles.length?`<div class="nikkei-learning-list"><strong>読んだ記事：</strong>${articleTitles.map(escapeHTML).join(' / ')}</div>`:'<div class="nikkei-learning-list">日経マップで記事を開くと、ここに記事名が入ります。</div>'}
+    ${keywords.length?`<div class="nikkei-learning-keywords">${keywords.slice(0,30).map(word=>`<span class="nikkei-learning-keyword">${escapeHTML(word)}</span>`).join('')}</div>`:''}
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px">
+      <button type="button" class="btn btn-primary" onclick="openNikkeiMap()">日経マップを開く</button>
+      <button type="button" class="btn btn-ghost" onclick="clearNikkeiLearning()">今日の成果を削除</button>
+      <span class="quick-note">日経マップ側の「健康アプリへ成果を送る」で自動反映</span>
+    </div>
+  </div>`;
+}
+
+function openNikkeiMap(){
+  const returnUrl=location.href.split('#')[0];
+  const params=new URLSearchParams({
+    health_return:returnUrl,
+    goal_articles:String(NIKKEI_GOALS.articles),
+    goal_quizzes:String(NIKKEI_GOALS.quizzes),
+    goal_keywords:String(NIKKEI_GOALS.keywords)
+  });
+  window.open(`https://nikkei-map.pages.dev/?${params.toString()}`,'nikkeiMapLearning');
+}
+
+async function importNikkeiLearning(payload){
+  if(!payload||payload.source!=='nikkei-map')return;
+  const date=payload.date||todayStr;
+  if(date!==todayStr)return;
+  const d=today();
+  if(!d.v)d.v={};
+  const current=d.v.nikkeiLearning||{};
+  const merged={
+    date:todayStr,
+    articles:uniqueNikkeiItems([...(current.articles||[]),...(payload.articles||[])]),
+    quizzes:uniqueNikkeiItems([...(current.quizzes||[]),...(payload.quizzes||[])]),
+    keywords:uniqueNikkeiItems([...(current.keywords||[]),...(payload.keywords||[])],'text'),
+    receivedAt:new Date().toISOString()
+  };
+  d.v.nikkeiLearning=merged;
+  if(nikkeiLearningComplete(merged))d.c.longevity_purpose=true;
+  await saveDay(todayStr);
+  renderNikkeiLearning();
+  renderRoutine();
+  renderTodayDashboard();
+}
+
+async function clearNikkeiLearning(){
+  if(!confirm('今日の日経マップ学習成果を削除しますか？'))return;
+  const d=today();
+  if(d.v)delete d.v.nikkeiLearning;
+  d.c.longevity_purpose=false;
+  await saveDay(todayStr);
+  renderNikkeiLearning();
+  renderRoutine();
+  renderTodayDashboard();
+}
+
+function decodeNikkeiHash(){
+  const match=location.hash.match(/(?:^#|&)nikkei=([^&]+)/);
+  if(!match)return;
+  try{
+    const encoded=decodeURIComponent(match[1]).replace(/-/g,'+').replace(/_/g,'/');
+    const padded=encoded+'='.repeat((4-encoded.length%4)%4);
+    const bytes=Uint8Array.from(atob(padded),char=>char.charCodeAt(0));
+    importNikkeiLearning(JSON.parse(new TextDecoder().decode(bytes)));
+    history.replaceState(null,'',location.pathname+location.search);
+  }catch(e){
+    console.warn('日経マップ成果を読み込めませんでした',e);
+  }
+}
+
+window.addEventListener('message',event=>{
+  if(event.origin!=='https://nikkei-map.pages.dev')return;
+  importNikkeiLearning(event.data);
+});
+window.addEventListener('hashchange',decodeNikkeiHash);
+
 function renderMetricRoutines(){
   const el=document.getElementById('metric-routine-body');
   if(!el)return;
@@ -1633,6 +1763,7 @@ function renderTodayDashboard(){
   renderDailyScore();
   renderPriority();
   renderTimeSummary();
+  renderNikkeiLearning();
   renderMetricRoutines();
   renderStepIncrement();
   renderOfficePlan();
@@ -3692,6 +3823,7 @@ window.addEventListener('DOMContentLoaded',async ()=>{
   initSidebar();
   document.getElementById('today-label').textContent=fmtJP(todayStr);
   await loadDB();
+  decodeNikkeiHash();
   renderKPIs();renderAlerts();renderQuickVitals();renderTodayDashboard();renderRoutine();
   startOnlineRetry();
 });
