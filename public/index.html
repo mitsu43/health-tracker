@@ -131,6 +131,8 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .tag-ua{background:rgba(176,120,32,0.12);color:#7a6010}
 .tag-hba1c{background:rgba(192,57,43,0.12);color:var(--danger)}
 .tag-bp{background:rgba(37,99,168,0.12);color:var(--blue)}
+.tag-hb{background:rgba(155,59,89,0.12);color:#983b59}
+.tag-ht{background:rgba(92,78,145,0.12);color:#5c4e91}
 .tag-weight{background:rgba(42,122,75,0.12);color:var(--ok)}
 .tag-sleep{background:rgba(124,92,191,0.12);color:var(--purple)}
 
@@ -316,6 +318,26 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .time-status{font-size:12px;color:var(--text2);line-height:1.45;margin-top:6px}
 .time-missing{font-size:12px;color:var(--danger);line-height:1.5;margin-top:6px}
 .time-score{font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--text)}
+.metric-routine-section{margin-bottom:16px}
+.metric-routine-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px}
+.metric-routine-title{font-size:14px;font-weight:700;color:var(--text)}
+.metric-routine-note{font-size:12px;color:var(--text2);line-height:1.55}
+.metric-routine-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.metric-routine-card{background:var(--bg2);border:1px solid var(--border);border-top:3px solid var(--metric-color);border-radius:var(--radius-lg);padding:15px 16px;box-shadow:var(--shadow)}
+.metric-routine-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.metric-routine-name{font-size:15px;font-weight:700;color:var(--text)}
+.metric-routine-latest{font-size:11px;color:var(--text2);margin-top:2px}
+.metric-routine-count{font-family:'DM Mono',monospace;font-size:16px;font-weight:700;white-space:nowrap}
+.metric-routine-list{margin-top:10px}
+.metric-routine-item{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:start;padding:9px 0;border-top:1px solid var(--border);cursor:pointer}
+.metric-routine-item:first-child{border-top:none}
+.metric-routine-item.checked{opacity:.58}
+.metric-routine-item.checked .metric-routine-item-title{text-decoration:line-through}
+.metric-routine-item .checkbox{width:18px;height:18px;margin-top:1px}
+.metric-routine-item.checked .checkbox{background:var(--ok);border-color:var(--ok)}
+.metric-routine-item-title{font-size:13px;font-weight:700;color:var(--text);line-height:1.45}
+.metric-routine-target{font-size:11px;color:var(--text2);line-height:1.45;margin-top:2px}
+.metric-routine-points{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--metric-color);white-space:nowrap;padding-top:2px}
 .day-diagnosis{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow);font-size:13px;color:var(--text2);line-height:1.7}
 .quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 .quick-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -343,6 +365,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .prog-summary{grid-template-columns:1fr}
   .chart-grid,.two-col{grid-template-columns:1fr}
   .coach-summary-grid,.time-grid,.quick-grid{grid-template-columns:1fr}
+  .metric-routine-grid{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
   .coach-log-filter{grid-template-columns:1fr}
   .med-matrix{min-width:680px}
@@ -484,6 +507,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div class="time-grid" id="time-summary"></div>
+    <div id="metric-routine-body"></div>
     <div id="office-plan-body"></div>
     <div id="routine-body"></div>
   </div>
@@ -692,7 +716,14 @@ code,pre,.mono{font-family:'DM Mono',monospace}
         <div class="form-group"><label>空腹時血糖 (mg/dl)</label><input type="number" id="r-fg" placeholder="109"></div>
         <div class="form-group"><label>中性脂肪 (mg/dl)</label><input type="number" id="r-tg" placeholder="70"></div>
         <div class="form-group"><label>HDL (mg/dl)</label><input type="number" id="r-hdl" placeholder="50"></div>
+        <div class="form-group"><label>ヘマトクリット Ht (%)</label><input type="number" step="0.1" id="r-ht" placeholder="検査票の数値"></div>
+        <div class="form-group"><label>Ht 基準下限 (%)</label><input type="number" step="0.1" id="r-ht_min" placeholder="検査票の下限"></div>
+        <div class="form-group"><label>Ht 基準上限 (%)</label><input type="number" step="0.1" id="r-ht_max" placeholder="検査票の上限"></div>
+        <div class="form-group"><label>ヘモグロビン Hb (g/dL)</label><input type="number" step="0.1" id="r-hb" placeholder="例: 13.0"></div>
+        <div class="form-group"><label>Hb 基準下限 (g/dL)</label><input type="number" step="0.1" id="r-hb_min" placeholder="13.3"></div>
+        <div class="form-group"><label>Hb 基準上限 (g/dL)</label><input type="number" step="0.1" id="r-hb_max" placeholder="17.9"></div>
       </div>
+      <div class="quick-note">Htの単位は通常「%」です。Ht・Hb低値には鉄不足以外の原因もあるため、低値が続く、息切れ・立ちくらみ・強い疲労がある場合は医療機関で原因を確認してください。</div>
     </div>
     <div style="display:flex;gap:10px;align-items:center">
       <button class="btn btn-primary" onclick="saveRec()">💾 この日の記録を保存</button>
@@ -841,6 +872,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       <div class="chart-header"><div class="chart-title">血液検査の推移 (記録がある日のみ)</div></div>
       <div style="position:relative;height:200px"><canvas id="chart-blood" role="img" aria-label="血液検査推移">血液検査の推移</canvas></div>
     </div>
+    <div class="chart-card" style="margin-bottom:16px">
+      <div class="chart-header"><div class="chart-title">Ht・Hbの推移 (記録がある日のみ)</div></div>
+      <div style="position:relative;height:200px"><canvas id="chart-redblood" role="img" aria-label="ヘマトクリットとヘモグロビン推移">Ht・Hbの推移</canvas></div>
+    </div>
     <div class="section-spacer"></div>
   </div>
 </div>
@@ -971,6 +1006,12 @@ const ROUTINES = [
   {id:'sleep7',    cat:'night', label:'7時間以上の睡眠確保',
    why:'睡眠不足はコルチゾール急上昇→血糖値・LDL・血圧の三重悪化。最も重要な習慣の一つ。',
    affects:{hba1c:12,ldl:10,bp:15,weight:8}, skipRate:{hba1c:0.012,ldl:0.5,bp:0.6}, tags:['hba1c','ldl','bp','weight']},
+  {id:'iron_protein', cat:'diet', label:'鉄・たんぱく質を含む食品を1食',
+   why:'赤身肉、魚、卵、大豆などで造血に必要な鉄とたんぱく質を食事から確保する。低値の原因は鉄不足とは限らないため、食事改善と原因確認を分けて考える。',
+   affects:{hb:22,ht:18}, skipRate:{}, tags:['hb','ht']},
+  {id:'iron_vitc', cat:'diet', label:'鉄を含む食事にビタミンCを添える',
+   why:'野菜や果物のビタミンCは植物性食品に含まれる非ヘム鉄の吸収を助ける。例は大豆＋野菜、魚＋ブロッコリー。',
+   affects:{hb:14,ht:12}, skipRate:{}, tags:['hb','ht']},
   {id:'longevity_strength', cat:'longevity', label:'筋力・バランス10分',
    why:'百歳まで自分の足で動く土台。筋トレと片足立ち・かかと上げで転倒予防、血糖消費、フレイル予防を同時に狙う。',
    affects:{hba1c:8,weight:8,bp:5}, skipRate:{hba1c:0.006,weight:0.02,bp:0.2}, tags:['hba1c','weight','bp']},
@@ -1012,6 +1053,8 @@ const ACTIVITY_TARGETS = {
   no_alc:'夜: アルコールなし',
   no_eat_20:'夜20時以降: 食べない',
   sleep7:'夜: 7時間以上',
+  iron_protein:'朝・昼・夜のどこか1食',
+  iron_vitc:'鉄を含む食事と同時に',
   longevity_strength:'夕方まで: 10分',
   longevity_oral:'夜: 歯間ケアまで',
   longevity_social:'1日1回: 誰かと接点',
@@ -1055,7 +1098,7 @@ const MED_TIME_PATTERNS = {
   'am,noon':'朝昼'
 };
 
-const VITAL_FIELDS = ['sbp','dbp','pulse','sbp_am','dbp_am','pulse_am','sbp_pm','dbp_pm','pulse_pm','wt','bf','vis','waist','bmr','steps','water_ml','slp','slpscore','skeletal_muscle','asm_index','lean_mass','body_water','ldl','ua','hba1c','fg','tg','hdl'];
+const VITAL_FIELDS = ['sbp','dbp','pulse','sbp_am','dbp_am','pulse_am','sbp_pm','dbp_pm','pulse_pm','wt','bf','vis','waist','bmr','steps','water_ml','slp','slpscore','skeletal_muscle','asm_index','lean_mass','body_water','ldl','ua','hba1c','fg','tg','hdl','ht','ht_min','ht_max','hb','hb_min','hb_max'];
 const QUICK_FIELDS = ['steps','water_ml','wt','slp','sbp','dbp','waist','bf','vis'];
 const GOAL_FIELDS = ['wt','sbp','dbp','ldl','ua','hba1c','steps','water_ml','slp','bf','waist'];
 const MEAL_TEXT_FIELDS = ['breakfast','lunch','dinner','snack','drink','supplements','note'];
@@ -1063,6 +1106,10 @@ const MEAL_FLAG_FIELDS = ['out','alcohol','fried','late'];
 const MEAL_COMMENT_FIELDS = ['breakfast','lunch','dinner','snack','supplements','daily_total'];
 const DEFAULT_GOALS = {wt:83,sbp:125,dbp:80,ldl:119,ua:7.0,hba1c:5.5,steps:10000,water_ml:1500,slp:7,bf:25,waist:90};
 const BASELINE = {wt:89.2,sbp:128,ldl:179,ua:8.1,hba1c:6.1,fg:109,steps:0,slp:0};
+const LAB_RANGES = {
+  hb:{min:13.3,max:17.9,unit:'g/dL'},
+  ht:{min:null,max:null,unit:'%'}
+};
 const METRIC_INFO = {
   wt:    {label:'体重',   unit:'kg',   warn:90,   danger:92,   color:'#2a7a4b'},
   sbp:   {label:'最高血圧',unit:'mmHg',warn:130,  danger:140,  color:'#2563a8'},
@@ -1289,6 +1336,26 @@ function getPrevVal(key){
   return null;
 }
 
+function getLatestLabBound(metric,bound){
+  const key=`${metric}_${bound}`;
+  const days=Object.keys(DB).sort().reverse();
+  for(const d of days){
+    const val=DB[d]?.v?.[key];
+    if(val!=null)return val;
+  }
+  return LAB_RANGES[metric]?.[bound] ?? null;
+}
+
+function getLabStatus(metric,value){
+  const min=getLatestLabBound(metric,'min');
+  const max=getLatestLabBound(metric,'max');
+  if(value==null)return {label:'未記録',className:'',low:false,high:false};
+  if(min!=null&&value<min)return {label:'基準値以下（低）',className:'danger',low:true,high:false};
+  if(max!=null&&value>max)return {label:'基準値以上（高）',className:'danger',low:false,high:true};
+  if(min==null&&max==null)return {label:'基準範囲を入力',className:'warn',low:false,high:false};
+  return {label:'基準範囲内',className:'ok',low:false,high:false};
+}
+
 // ========== ALERTS ==========
 function renderAlerts(){
   const el=document.getElementById('alert-zone');
@@ -1302,6 +1369,12 @@ function renderAlerts(){
   if(hba1c&&hba1c>5.5) alerts.push({type:'warn',icon:'📊',title:`HbA1c ${hba1c}% — 基準値5.5超過`,desc:'ベジファースト・間食なし・1万歩・20時以降絶食の4習慣が血糖値を直接改善する。'});
   const sbp=getLatestVal('sbp');
   if(sbp&&sbp>130) alerts.push({type:'warn',icon:'💓',title:`最高血圧 ${sbp} mmHg — 正常高値`,desc:'水分補給・減塩・1万歩・7時間睡眠が血圧改善に有効。'});
+  const hb=getLatestVal('hb');
+  const hbStatus=getLabStatus('hb',hb);
+  if(hbStatus.low) alerts.push({type:'warn',icon:'🩸',title:`ヘモグロビン ${hb} g/dL — 基準値以下`,desc:'鉄・たんぱく質を含む食事を確保しつつ、低値が続く場合はフェリチンなどを含め原因を医療機関で確認してください。'});
+  const ht=getLatestVal('ht');
+  const htStatus=getLabStatus('ht',ht);
+  if(htStatus.low) alerts.push({type:'warn',icon:'🩸',title:`ヘマトクリット ${ht}% — 基準値以下`,desc:'Htは血液中に占める赤血球の割合です。Hbと合わせて確認し、低値が続く場合は医療機関へ相談してください。'});
   const c=today().c||{};
   const done=ROUTINES.filter(r=>c[r.id]).length;
   const pct=Math.round(done/ROUTINES.length*100);
@@ -1320,16 +1393,17 @@ function metricDataKey(metric){
 }
 
 function metricGoal(metric){
+  if(metric==='hb'||metric==='ht')return getLatestLabBound(metric,'min');
   const key=metricDataKey(metric);
   return GOALS[key] || METRIC_INFO[key]?.warn || 100;
 }
 
 function metricLabel(metric){
-  return {ldl:'LDL',ua:'尿酸値',hba1c:'HbA1c',bp:'血圧',weight:'体重',sleep:'睡眠'}[metric] || metric;
+  return {ldl:'LDL',ua:'尿酸値',hba1c:'HbA1c',bp:'血圧',hb:'ヘモグロビン',ht:'ヘマトクリット',weight:'体重',sleep:'睡眠'}[metric] || metric;
 }
 
 function metricColor(metric){
-  return {ldl:'#c96a2a',ua:'#b07820',hba1c:'#c0392b',bp:'#2563a8',weight:'#2a7a4b',sleep:'#7c5cbf'}[metric] || 'var(--accent)';
+  return {ldl:'#c96a2a',ua:'#b07820',hba1c:'#c0392b',bp:'#2563a8',hb:'#983b59',ht:'#5c4e91',weight:'#2a7a4b',sleep:'#7c5cbf'}[metric] || 'var(--accent)';
 }
 
 function metricUrgency(metric){
@@ -1338,6 +1412,13 @@ function metricUrgency(metric){
   const val=getLatestVal(key);
   const goal=metricGoal(metric);
   if(!val || !goal) return 1;
+  if(metric==='hb'||metric==='ht'){
+    const under=(goal-val)/goal;
+    if(under>=0.15)return 2.2;
+    if(under>=0.07)return 1.8;
+    if(under>0)return 1.35;
+    return 1;
+  }
   const over=(val-goal)/goal;
   if(over>=0.25) return 2.2;
   if(over>=0.12) return 1.8;
@@ -1347,7 +1428,7 @@ function metricUrgency(metric){
 
 function getMetricScores(){
   const c=today().c||{};
-  const metrics=['ldl','ua','hba1c','bp','weight'];
+  const metrics=['ldl','ua','hba1c','bp','hb','ht','weight'];
   return metrics.map(metric=>{
     const rel=ROUTINES.filter(r=>r.affects[metric]);
     const target=rel.reduce((s,r)=>s+(r.affects[metric]||0),0);
@@ -1437,6 +1518,69 @@ function renderTimeSummary(){
   }).join('');
 }
 
+function renderMetricRoutines(){
+  const el=document.getElementById('metric-routine-body');
+  if(!el)return;
+  const c=today().c||{};
+  const metrics=[
+    {key:'ldl',label:'LDL',goalKey:'ldl',unit:'mg/dl',focus:'脂質・食物繊維・有酸素運動'},
+    {key:'ua',label:'尿酸値',goalKey:'ua',unit:'',focus:'水分・飲酒・尿酸排出'},
+    {key:'hba1c',label:'HbA1c',goalKey:'hba1c',unit:'%',focus:'食後血糖・間食・筋肉活動'},
+    {key:'bp',label:'血圧',goalKey:'sbp',unit:'mmHg',focus:'測定・水分・運動・睡眠'},
+    {key:'hb',label:'ヘモグロビン Hb',goalKey:'hb',unit:'g/dL',focus:'酸素を運ぶ主成分・鉄・たんぱく質'},
+    {key:'ht',label:'ヘマトクリット Ht',goalKey:'ht',unit:'%',focus:'血液中に占める赤血球の割合'}
+  ];
+  const cards=metrics.map(metric=>{
+    const items=ROUTINES.filter(r=>(r.affects?.[metric.key]||0)>0)
+      .sort((a,b)=>(b.affects[metric.key]||0)-(a.affects[metric.key]||0));
+    const done=items.filter(r=>c[r.id]);
+    const totalPoints=items.reduce((sum,r)=>sum+(r.affects[metric.key]||0),0);
+    const donePoints=done.reduce((sum,r)=>sum+(r.affects[metric.key]||0),0);
+    const pct=totalPoints?Math.round(donePoints/totalPoints*100):0;
+    const color=metricColor(metric.key);
+    const latest=getLatestVal(metric.goalKey);
+    const isBloodCell=metric.key==='hb'||metric.key==='ht';
+    const goal=isBloodCell?getLatestLabBound(metric.key,'min'):GOALS[metric.goalKey];
+    const max=isBloodCell?getLatestLabBound(metric.key,'max'):null;
+    const rangeText=isBloodCell
+      ? (goal!=null?`基準 ${goal}${max!=null?`–${max}`:''}${metric.unit}`:'基準範囲を健診入力欄へ入力')
+      : `目標 ${goal??'-'}${metric.unit}`;
+    const latestText=latest!=null?`最新 ${latest}${metric.unit} / ${rangeText}`:rangeText;
+    const rows=items.map(r=>{
+      const checked=!!c[r.id];
+      return `<div class="metric-routine-item${checked?' checked':''}" onclick="tog('${r.id}')">
+        <div class="checkbox">${checked?'<span class="check-mark">✓</span>':''}</div>
+        <div>
+          <div class="metric-routine-item-title">${r.label}</div>
+          <div class="metric-routine-target">${ACTIVITY_TARGETS[r.id]||'今日中'}</div>
+        </div>
+        <div class="metric-routine-points">+${r.affects[metric.key]}点</div>
+      </div>`;
+    }).join('');
+    return `<div class="metric-routine-card" style="--metric-color:${color}">
+      <div class="metric-routine-card-head">
+        <div>
+          <div class="metric-routine-name">${metric.label}</div>
+          <div class="metric-routine-latest">${latestText}</div>
+        </div>
+        <div class="metric-routine-count" style="color:${color}">${done.length}/${items.length}</div>
+      </div>
+      <div class="metric-routine-note">${metric.focus}</div>
+      <div class="progress" style="margin-top:9px"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="metric-routine-list">${rows}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<section class="metric-routine-section">
+    <div class="metric-routine-head">
+      <div>
+        <div class="metric-routine-title">改善数値別 毎日のノルマ</div>
+        <div class="metric-routine-note">同じノルマは朝・昼・晩の一覧と連動します。影響度が高い順に表示しています。</div>
+      </div>
+    </div>
+    <div class="metric-routine-grid">${cards}</div>
+  </section>`;
+}
+
 function renderDayDiagnosis(){
   const el=document.getElementById('daily-diagnosis');
   if(!el)return;
@@ -1466,6 +1610,7 @@ function renderTodayDashboard(){
   renderDailyScore();
   renderPriority();
   renderTimeSummary();
+  renderMetricRoutines();
   renderStepIncrement();
   renderOfficePlan();
   renderDayDiagnosis();
@@ -1526,7 +1671,7 @@ function renderOfficePlan(){
   const done=OFFICE_PLAN.filter(r=>c[r.id]).length;
   const pct=Math.round(done/OFFICE_PLAN.length*100);
   const col=pct>=80?'var(--ok)':pct>=50?'var(--warn)':'var(--danger)';
-  const tagLabel={ldl:'LDL',ua:'尿酸',hba1c:'HbA1c',bp:'血圧',weight:'体重',sleep:'睡眠'};
+  const tagLabel={ldl:'LDL',ua:'尿酸',hba1c:'HbA1c',bp:'血圧',hb:'Hb',ht:'Ht',weight:'体重',sleep:'睡眠'};
   let html=`<div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
       <div>
@@ -1569,7 +1714,7 @@ function renderRoutine(){
     let html=`<div class="routine-group"><div class="group-header"><div class="group-label" style="color:${ci.color}">${ci.label}</div><div class="group-count">${doneN}/${items.length}</div></div>`;
     items.forEach(r=>{
       const chk=!!c[r.id];
-      const tagHtml=r.tags.map(t=>`<span class="tag tag-${t}">${{ldl:'LDL',ua:'尿酸',hba1c:'HbA1c',bp:'血圧',weight:'体重',sleep:'睡眠'}[t]||t}</span>`).join('');
+      const tagHtml=r.tags.map(t=>`<span class="tag tag-${t}">${{ldl:'LDL',ua:'尿酸',hba1c:'HbA1c',bp:'血圧',hb:'Hb',ht:'Ht',weight:'体重',sleep:'睡眠'}[t]||t}</span>`).join('');
       html+=`<div class="check-item${chk?' checked':''}" onclick="tog('${r.id}')">
         <div class="checkbox">${chk?'<span class="check-mark">✓</span>':''}</div>
         <div class="item-body">
@@ -2322,6 +2467,10 @@ function renderRec(){
     const el=document.getElementById('r-'+k);
     if(el)el.value=v[k]!=null?v[k]:(k==='sbp_am'?v.sbp:k==='dbp_am'?v.dbp:k==='pulse_am'?v.pulse:'')||'';
   });
+  const hbMin=document.getElementById('r-hb_min');
+  const hbMax=document.getElementById('r-hb_max');
+  if(hbMin&&!hbMin.value)hbMin.value=LAB_RANGES.hb.min;
+  if(hbMax&&!hbMax.value)hbMax.value=LAB_RANGES.hb.max;
   renderMealLog(v.meals||{});
 }
 function recDay(d){const dt=new Date(recDateStr);dt.setDate(dt.getDate()+d);recDateStr=fmtD(dt);renderRec()}
@@ -2533,7 +2682,8 @@ async function analyzeMealSlot(slot){
       goals:GOALS,
       latest:{
         wt:getLatestVal('wt'), sbp:getLatestVal('sbp'), dbp:getLatestVal('dbp'),
-        ldl:getLatestVal('ldl'), ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c')
+        ldl:getLatestVal('ldl'), ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c'),
+        hb:getLatestVal('hb'), ht:getLatestVal('ht')
       }
     };
     const res=await fetch('/api/meal/comment',{
@@ -2616,6 +2766,16 @@ function renderAnalysis(){
        {id:'steps_10k',msg:'1万歩未達成 — 血管の柔軟性低下・血圧上昇'},
        {id:'sleep7',msg:'睡眠不足 — 交感神経亢進で慢性的な血圧上昇'},
      ]},
+    {key:'hb',label:'ヘモグロビン Hb',goal:getLatestLabBound('hb','min'),unit:'g/dL',color:'#983b59',direction:'low',
+     causes:[
+       {id:'iron_protein',msg:'鉄・たんぱく質を含む食事が不足 — 造血に必要な材料を食事から確保できていない可能性'},
+       {id:'iron_vitc',msg:'鉄を含む食事とビタミンCの組み合わせ不足 — 非ヘム鉄の吸収を助ける工夫が少ない'},
+     ]},
+    {key:'ht',label:'ヘマトクリット Ht',goal:getLatestLabBound('ht','min'),unit:'%',color:'#5c4e91',direction:'low',
+     causes:[
+       {id:'iron_protein',msg:'鉄・たんぱく質を含む食事が不足 — 赤血球をつくる材料が不足している可能性'},
+       {id:'iron_vitc',msg:'鉄を含む食事とビタミンCの組み合わせ不足 — 食事からの鉄吸収を助ける工夫が少ない'},
+     ]},
   ];
 
   // Count average miss rate for last 14 days
@@ -2628,12 +2788,25 @@ function renderAnalysis(){
     missRate[r.id]=misses/14;
   });
 
-  checks.forEach(({key,label,goal,unit,color,causes})=>{
+  checks.forEach(({key,label,goal,unit,color,causes,direction='high'})=>{
     const val=getLatestVal(key);
-    if(!val)return;
-    const over=val>goal;
-    const statusCls=val>goal*1.1?'badge-danger':val>goal?'badge-warn':'badge-ok';
-    const statusText=over?`超過 +${(val-goal).toFixed(1)}`:'正常範囲';
+    if(val==null)return;
+    if(goal==null&&direction==='low'){
+      el.innerHTML+=`<div class="problem-card"><div class="problem-metric">
+        <div class="problem-dot" style="background:${color}"></div>
+        <div class="problem-name">${label}</div>
+        <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${color};">${val}<span style="font-size:12px;font-weight:400;color:var(--text2)"> ${unit}</span></div>
+        <div class="badge badge-warn" style="margin-left:8px">基準下限を入力</div>
+      </div><div style="font-size:12px;color:var(--text2);padding:8px 0">健診入力欄に検査票の基準下限を入力すると、低値判定ができます。</div></div>`;
+      return;
+    }
+    const abnormal=direction==='low'?val<goal:val>goal;
+    const statusCls=direction==='low'
+      ? (val<goal*0.9?'badge-danger':val<goal?'badge-warn':'badge-ok')
+      : (val>goal*1.1?'badge-danger':val>goal?'badge-warn':'badge-ok');
+    const statusText=abnormal
+      ? (direction==='low'?`基準値以下 ${(goal-val).toFixed(1)}`:`超過 +${(val-goal).toFixed(1)}`)
+      :'正常範囲';
 
     // find which causes are actually missing (miss rate > 30%)
     const activeCauses=causes.filter(c=>missRate[c.id]>0.3).sort((a,b)=>missRate[b.id]-missRate[a.id]);
@@ -2642,12 +2815,12 @@ function renderAnalysis(){
       <div class="problem-metric">
         <div class="problem-dot" style="background:${color}"></div>
         <div class="problem-name">${label}</div>
-        <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${over?color:'var(--ok)'};">${val}<span style="font-size:12px;font-weight:400;color:var(--text2)"> ${unit}</span></div>
+        <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${abnormal?color:'var(--ok)'};">${val}<span style="font-size:12px;font-weight:400;color:var(--text2)"> ${unit}</span></div>
         <div class="badge ${statusCls}" style="margin-left:8px">${statusText}</div>
       </div>`;
 
-    if(activeCauses.length>0&&over){
-      html+=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px">直近14日間の未達成パターンから検出された原因：</div>
+    if(activeCauses.length>0&&abnormal){
+      html+=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px">直近14日間の未達成パターンから見た改善候補（低値の原因を断定するものではありません）：</div>
       <ul class="causes-list">`;
       activeCauses.forEach(c=>{
         const mr=Math.round(missRate[c.id]*100);
@@ -2660,7 +2833,7 @@ function renderAnalysis(){
         </li>`;
       });
       html+='</ul>';
-    }else if(!over){
+    }else if(!abnormal){
       html+=`<div style="font-size:12px;color:var(--ok);padding:8px 0">✅ 目標範囲内です。現在の習慣を継続してください。</div>`;
     }else{
       html+=`<div style="font-size:12px;color:var(--text2);padding:8px 0">データが少ないため分析できません。毎日の習慣チェックを継続してください（2週間以上で分析精度が上がります）。</div>`;
@@ -2691,9 +2864,9 @@ function renderImpact(){
   const el=document.getElementById('impact-body');
   el.innerHTML='';
   const c=today().c||{};
-  const mkeys=['ldl','ua','hba1c','bp','weight'];
-  const mlabels={ldl:'LDL',ua:'尿酸値',hba1c:'HbA1c',bp:'血圧',weight:'体重'};
-  const mcolors={ldl:'#c96a2a',ua:'#b07820',hba1c:'#c0392b',bp:'#2563a8',weight:'#2a7a4b'};
+  const mkeys=['ldl','ua','hba1c','bp','hb','ht','weight'];
+  const mlabels={ldl:'LDL',ua:'尿酸値',hba1c:'HbA1c',bp:'血圧',hb:'ヘモグロビン Hb',ht:'ヘマトクリット Ht',weight:'体重'};
+  const mcolors={ldl:'#c96a2a',ua:'#b07820',hba1c:'#c0392b',bp:'#2563a8',hb:'#983b59',ht:'#5c4e91',weight:'#2a7a4b'};
 
   mkeys.forEach(mk=>{
     const rel=ROUTINES.filter(r=>r.affects[mk]);
@@ -2786,7 +2959,7 @@ function renderSim(){
     return sb-sa;
   }).map(r=>{
     const effects=Object.entries(r.skipRate||{}).map(([k,v])=>`${METRIC_INFO[k]?.label||k}+${(v*days).toFixed(1)}/日×${days}日`).join('　');
-    const tagHtml=r.tags.map(t=>`<span class="tag tag-${t}">${{ldl:'LDL',ua:'尿酸',hba1c:'HbA1c',bp:'血圧',weight:'体重',sleep:'睡眠'}[t]||t}</span>`).join('');
+    const tagHtml=r.tags.map(t=>`<span class="tag tag-${t}">${{ldl:'LDL',ua:'尿酸',hba1c:'HbA1c',bp:'血圧',hb:'Hb',ht:'Ht',weight:'体重',sleep:'睡眠'}[t]||t}</span>`).join('');
     return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
       <div style="font-size:13px;font-weight:500;margin-bottom:4px;color:var(--text)">⬜ ${r.label}</div>
       ${effects?`<div style="font-size:11px;color:var(--danger);font-family:'DM Mono',monospace;margin-bottom:4px">${effects}</div>`:''}
@@ -2900,7 +3073,8 @@ function buildCoachContext(){
     goals: GOALS,
     latest: {
       wt:getLatestVal('wt'), sbp:getLatestVal('sbp'), ldl:getLatestVal('ldl'),
-      ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c'), steps:getLatestVal('steps'), water_ml:getLatestVal('water_ml'), slp:getLatestVal('slp'),
+      ua:getLatestVal('ua'), hba1c:getLatestVal('hba1c'), hb:getLatestVal('hb'), ht:getLatestVal('ht'),
+      steps:getLatestVal('steps'), water_ml:getLatestVal('water_ml'), slp:getLatestVal('slp'),
       bf:getLatestVal('bf'), vis:getLatestVal('vis'), waist:getLatestVal('waist'), bmr:getLatestVal('bmr'),
       skeletal_muscle:getLatestVal('skeletal_muscle'), asm_index:getLatestVal('asm_index'), lean_mass:getLatestVal('lean_mass'), body_water:getLatestVal('body_water')
     },
@@ -3332,6 +3506,31 @@ function renderTrends(){
       {label:'尿酸値×10',data:bloodDays.map(d=>DB[d].v.ua?DB[d].v.ua*10:null),borderColor:'#b07820',tension:0.3,spanGaps:true,pointRadius:4,yAxisID:'y'},
       {label:'HbA1c×10',data:bloodDays.map(d=>DB[d].v.hba1c?DB[d].v.hba1c*10:null),borderColor:'#c0392b',tension:0.3,spanGaps:true,pointRadius:4,yAxisID:'y'},
     ]);
+  }
+
+  const redBloodDays=Object.keys(DB).filter(d=>DB[d].v&&(DB[d].v.ht!=null||DB[d].v.hb!=null)).sort();
+  if(redBloodDays.length>0){
+    killChart('chart-redblood');
+    const ctx=document.getElementById('chart-redblood');
+    if(ctx)charts['chart-redblood']=new Chart(ctx,{
+      type:'line',
+      data:{
+        labels:redBloodDays.map(compactLabel),
+        datasets:[
+          {label:'Ht (%)',data:redBloodDays.map(d=>DB[d].v.ht??null),borderColor:'#5c4e91',backgroundColor:'transparent',tension:0.3,spanGaps:true,pointRadius:4,yAxisID:'yHt'},
+          {label:'Hb (g/dL)',data:redBloodDays.map(d=>DB[d].v.hb??null),borderColor:'#983b59',backgroundColor:'transparent',tension:0.3,spanGaps:true,pointRadius:4,yAxisID:'yHb'},
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,labels:{color:'#6b5f52',boxWidth:12,font:{size:11}}}},
+        scales:{
+          x:{ticks:{color:'#9e9188',font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}},
+          yHt:{type:'linear',position:'left',ticks:{color:'#5c4e91',font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'},title:{display:true,text:'Ht (%)',color:'#5c4e91'}},
+          yHb:{type:'linear',position:'right',ticks:{color:'#983b59',font:{size:10}},grid:{drawOnChartArea:false},title:{display:true,text:'Hb (g/dL)',color:'#983b59'}}
+        }
+      }
+    });
   }
 }
 
