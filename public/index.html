@@ -364,6 +364,18 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .quick-details[open] summary{border-radius:var(--radius-lg) var(--radius-lg) 0 0}
 .quick-details[open] summary::after{content:'−'}
 .quick-details-body{background:var(--bg2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);padding:16px 18px;box-shadow:var(--shadow)}
+.ergometer-card{background:var(--bg2);border:1px solid var(--border);border-top:3px solid #287c87;border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.ergometer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.ergometer-title{font-size:14px;font-weight:700;color:var(--text)}
+.ergometer-count{font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#287c87;white-space:nowrap}
+.ergometer-plan{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.ergometer-step{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 10px}
+.ergometer-step b{display:block;font-size:12px;color:var(--text);margin-bottom:2px}
+.ergometer-step span{font-size:11px;color:var(--text2);line-height:1.45}
+.ergometer-toggle{font:inherit;color:inherit;background:transparent}
+.ergometer-toggle.checked{background:var(--ok-dim)}
+.ergometer-toggle strong,.ergometer-toggle small{display:block}
+.ergometer-toggle small{margin-top:2px;color:var(--text2)}
 
 @media(max-width:900px){
   body{font-size:16px;line-height:1.75}
@@ -389,6 +401,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .coach-summary-grid,.time-grid,.quick-grid{grid-template-columns:1fr}
   .metric-routine-grid{grid-template-columns:1fr}
   .nikkei-learning-grid{grid-template-columns:1fr}
+  .ergometer-plan{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
   .coach-log-filter{grid-template-columns:1fr}
   .med-matrix{min-width:680px}
@@ -532,6 +545,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
       </div>
     </div>
     <div class="time-grid" id="time-summary"></div>
+    <div id="ergometer-body"></div>
     <div id="metric-routine-body"></div>
     <div id="routine-body"></div>
     <div id="office-plan-body"></div>
@@ -1077,6 +1091,7 @@ const ROUTINES = [
    ],
    affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
 ];
+const ERGOMETER_WEEK_TARGET = 3;
 
 const CATS = {
   morning: {label:'🌅 朝のルーティーン', color:'#7c5cbf'},
@@ -1319,6 +1334,17 @@ function fmtD(d){return d.getFullYear()+'-'+(d.getMonth()+1+'').padStart(2,'0')+
 function fmtJP(s){const[y,m,d]=s.split('-');return `${y}年${parseInt(m)}月${parseInt(d)}日`}
 function fmtShort(s){const[,m,d]=s.split('-');return `${parseInt(m)}/${parseInt(d)}`}
 function parseDateLocal(s){if(!s)return null;const[y,m,d]=String(s).split('-').map(Number);return y&&m&&d?new Date(y,m-1,d):null}
+function getCurrentWeekDates(){
+  const current=parseDateLocal(todayStr)||new Date();
+  const monday=new Date(current);
+  const day=(monday.getDay()+6)%7;
+  monday.setDate(monday.getDate()-day);
+  return Array.from({length:7},(_,i)=>{
+    const date=new Date(monday);
+    date.setDate(date.getDate()+i);
+    return fmtD(date);
+  });
+}
 function addDaysStr(s,n){const d=parseDateLocal(s);if(!d)return '';d.setDate(d.getDate()+n);return fmtD(d)}
 function daysBetweenInclusive(start,end){const a=parseDateLocal(start),b=parseDateLocal(end);if(!a||!b)return null;return Math.round((b-a)/86400000)+1}
 
@@ -1774,10 +1800,48 @@ function renderDayDiagnosis(){
   el.innerHTML=`<strong>今日の集計：</strong>${weakText} ${numText} ${worseText} ${nextText}`;
 }
 
+function renderErgometer(){
+  const el=document.getElementById('ergometer-body');
+  if(!el)return;
+  const weekDates=getCurrentWeekDates();
+  const doneDates=weekDates.filter(date=>!!DB[date]?.c?.ergometer_15);
+  const checked=!!today().c.ergometer_15;
+  const pct=Math.min(100,Math.round(doneDates.length/ERGOMETER_WEEK_TARGET*100));
+  el.innerHTML=`<div class="ergometer-card">
+    <div class="ergometer-head">
+      <div>
+        <div class="ergometer-title">エルゴメーター補助ノルマ</div>
+        <div class="quick-note">週3回。雨・歩数不足・座り時間が長い日に、歩数ノルマへの上乗せではなく代替として使います。</div>
+      </div>
+      <div class="ergometer-count">${doneDates.length}/${ERGOMETER_WEEK_TARGET}回</div>
+    </div>
+    <div class="ergometer-plan">
+      <div class="ergometer-step"><b>0〜3分</b><span>軽い負荷でウォームアップ</span></div>
+      <div class="ergometer-step"><b>3〜12分</b><span>会話はできるが歌うのは難しい程度</span></div>
+      <div class="ergometer-step"><b>12〜15分</b><span>軽い負荷でクールダウン</span></div>
+    </div>
+    <div class="progress" style="margin-bottom:12px"><div class="progress-fill" style="width:${pct}%;background:#287c87"></div></div>
+    <button type="button" class="check-item ergometer-toggle ${checked?'checked':''}" onclick="toggleErgometer()" style="width:100%;text-align:left">
+      <span class="checkbox">${checked?'✓':''}</span>
+      <span><strong>今日15分実施</strong><small>${checked?'記録済みです':'実施したらチェック'}</small></span>
+    </button>
+    <div class="quick-note" style="margin-top:10px">胸痛、強い息切れ、めまい、動悸があれば中止してください。治療中の場合は運動強度を医師に確認してください。</div>
+  </div>`;
+}
+
+async function toggleErgometer(){
+  const d=today();
+  d.c.ergometer_15=!d.c.ergometer_15;
+  await saveDay(todayStr);
+  renderErgometer();
+  renderDayDiagnosis();
+}
+
 function renderTodayDashboard(){
   renderDailyScore();
   renderPriority();
   renderTimeSummary();
+  renderErgometer();
   renderMetricRoutines();
   renderOfficePlan();
   renderDayDiagnosis();
@@ -3225,6 +3289,7 @@ function compactCoachContextForRequest(value,depth=0){
 function buildCoachContext(){
   const days=recentDays(30);
   const todayChecks=(today()&&today().c)||{};
+  const ergometerDates=getCurrentWeekDates().filter(date=>!!DB[date]?.c?.ergometer_15);
   const officeDone=OFFICE_PLAN.filter(r=>todayChecks[r.id]).map(r=>r.label);
   const officeMissed=OFFICE_PLAN.filter(r=>!todayChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
   const meds=getMeds().filter(m=>m.active!==false);
@@ -3255,6 +3320,11 @@ function buildCoachContext(){
       done: officeDone,
       missed: officeMissed,
       completion: OFFICE_PLAN.length?Math.round(officeDone.length/OFFICE_PLAN.length*100):0
+    },
+    ergometerWeek: {
+      target: ERGOMETER_WEEK_TARGET,
+      done: ergometerDates.length,
+      doneDates: ergometerDates
     },
     medicationPlan: {
       medicines: meds.map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:medTimeLabel(m),note:m.note||'',period:getMedPeriodText(m),activeToday:isMedActiveOn(m,todayStr)})),
