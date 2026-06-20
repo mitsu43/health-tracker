@@ -87,14 +87,15 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
           <summary>Google Drive教材リンクの登録</summary>
           <div class="settings">
             <div class="field">
-              <label for="video-links">動画リンク（1行に「番号 URL」）</label>
-              <textarea id="video-links" placeholder="001 https://drive.google.com/file/d/ファイルID/view&#10;002 https://drive.google.com/file/d/ファイルID/view"></textarea>
+              <label for="video-links">動画リンク（URLだけでも可。上から001、002…として登録）</label>
+              <textarea id="video-links" placeholder="https://drive.google.com/file/d/ファイルID/view&#10;https://drive.google.com/file/d/ファイルID/view"></textarea>
             </div>
             <div class="field" style="margin-top:10px">
               <label for="pdf-links">共通PDF（1行に「表示名 | URL」）</label>
               <textarea id="pdf-links" placeholder="総合講義テキスト | https://drive.google.com/file/d/ファイルID/view&#10;過去問上巻 | https://drive.google.com/file/d/ファイルID/view"></textarea>
             </div>
             <button class="btn primary" type="button" onclick="saveLibrary()" style="margin-top:10px">教材リンクを全端末用に保存</button>
+            <div id="library-status" class="status" style="margin-top:8px"></div>
             <div class="hint">Drive側は「リンクを知っている全員が閲覧可」にします。ローカルのG:ドライブパスは別端末では表示できません。</div>
           </div>
         </details>
@@ -162,9 +163,18 @@ function taskDefinitions(assignment){
 }
 function parseVideoLinks(){
   const result={};
+  let automaticNumber=1;
   String(GOALS.studyVideoLinks||'').split(/\r?\n/).forEach(line=>{
-    const match=line.trim().match(/^(\d{1,3})\s+(.+)$/);
-    if(match)result[Number(match[1])]=match[2].trim();
+    const value=line.trim();
+    if(!value)return;
+    const match=value.match(/^(\d{1,3})\s+(.+)$/);
+    if(match){
+      result[Number(match[1])]=match[2].trim();
+      automaticNumber=Math.max(automaticNumber,Number(match[1])+1);
+    }else if(/^https?:\/\//i.test(value)){
+      while(result[automaticNumber])automaticNumber++;
+      result[automaticNumber++]=value;
+    }
   });
   return result;
 }
@@ -239,15 +249,43 @@ async function saveNote(){
   try{await saveDay();setStatus('学習記録を保存しました')}catch{setStatus('端末内に保存しました',true)}
 }
 async function saveLibrary(){
-  GOALS.studyVideoLinks=document.getElementById('video-links').value.trim();
+  const videoInput=document.getElementById('video-links');
+  const rawLines=videoInput.value.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+  let nextNumber=1;
+  const normalizedLines=rawLines.map(line=>{
+    const numbered=line.match(/^(\d{1,3})\s+(https?:\/\/\S+)$/i);
+    if(numbered){
+      nextNumber=Math.max(nextNumber,Number(numbered[1])+1);
+      return `${String(Number(numbered[1])).padStart(3,'0')} ${numbered[2]}`;
+    }
+    if(/^https?:\/\/\S+$/i.test(line))return `${String(nextNumber++).padStart(3,'0')} ${line}`;
+    return line;
+  });
+  const invalid=normalizedLines.filter(line=>!/^\d{3}\s+https?:\/\/\S+$/i.test(line));
+  if(invalid.length){
+    setLibraryStatus('認識できない行があります。Driveの共有URLを1行に1件入力してください。',true);
+    return;
+  }
+  GOALS.studyVideoLinks=normalizedLines.join('\n');
   GOALS.studyPdfLinks=document.getElementById('pdf-links').value.trim();
+  videoInput.value=GOALS.studyVideoLinks;
   localStorage.setItem('hrtrack_goals_cache',JSON.stringify(GOALS));
+  renderMaterials();
+  setLibraryStatus(`動画${normalizedLines.length}件を端末内に保存しました。全端末へ同期中です。`);
   try{
     const response=await fetch('/api/goals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(GOALS)});
     if(!response.ok)throw new Error();
     setStatus('教材リンクを全端末用に保存しました');
-  }catch{setStatus('端末内だけに保存しました',true)}
-  renderMaterials();
+    setLibraryStatus(`保存完了：動画${normalizedLines.length}件を全端末で利用できます。`);
+  }catch{
+    setStatus('端末内だけに保存しました',true);
+    setLibraryStatus(`端末内には保存しましたが、サーバー同期に失敗しました。公開URLから再度お試しください。`,true);
+  }
+}
+function setLibraryStatus(message,error=false){
+  const el=document.getElementById('library-status');
+  el.textContent=message;
+  el.classList.toggle('warning',error);
 }
 function setStatus(message,error=false){
   const el=document.getElementById('sync-status');
