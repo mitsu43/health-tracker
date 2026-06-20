@@ -386,6 +386,10 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .career-roadmap-item b{display:block;font-size:11px;color:var(--text);margin-bottom:2px}
 .career-roadmap-item span{font-size:11px;color:var(--text2);line-height:1.45}
 .career-task-time{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#3f6b45;white-space:nowrap;margin-left:auto}
+.career-materials{font-size:12px;color:var(--text2);line-height:1.7}
+.career-materials b{color:var(--text)}
+.career-progress-row{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin:10px 0}
+.career-progress-row .form-group{margin:0;min-width:180px}
 
 @media(max-width:900px){
   body{font-size:16px;line-height:1.75}
@@ -1105,10 +1109,10 @@ const ROUTINES = [
 ];
 const ERGOMETER_WEEK_TARGET = 3;
 const CAREER_STUDY_TASKS = [
-  {id:'career_survey_theory',time:'25分',label:'測量士補のテキスト・講義を1単元',target:'要点を3行で記録'},
-  {id:'career_survey_questions',time:'20分',label:'測量士補の問題演習',target:'10問解き、正答数を確認'},
-  {id:'career_error_log',time:'5分',label:'間違い直し',target:'誤答を1問以上、原因と公式まで確認'},
-  {id:'career_investigator_base',time:'10分',label:'土地家屋調査士への橋渡し学習',target:'民法・不動産登記法・作図のどれか1テーマ'}
+  {id:'career_survey_theory',time:'25分',label:'測量士補の総合講義動画',target:'動画2本を視聴'},
+  {id:'career_survey_text',time:'10分',label:'対応範囲を総合講義テキストで確認',target:'重要点を3つ記録'},
+  {id:'career_survey_questions',time:'20分',label:'測量士補の過去問題',target:'10問解き、正答数を確認'},
+  {id:'career_error_log',time:'5分',label:'間違い直し',target:'誤答を1問以上、原因と公式まで確認'}
 ];
 
 const CATS = {
@@ -1856,9 +1860,37 @@ async function toggleErgometer(){
 }
 
 function getCareerStudyStage(){
-  if(todayStr<'2026-10-01')return {label:'基礎固め期',focus:'測量法・測量計算・誤差・地図とGISの基本を一巡する'};
-  if(todayStr<'2027-01-01')return {label:'全範囲完成期',focus:'未学習分野をなくし、分野別問題の正答率70%を目指す'};
+  const progress=getCareerProgress();
+  if(progress.lectureEnd<169)return {label:'講義1周目',focus:`総合講義169本のうち${progress.lectureEnd}本完了。1日2本で9月末までの完走を目指す`};
+  if(todayStr<'2027-01-01')return {label:'問題演習期',focus:'過去問上巻・下巻を分野別に解き、正答率70%以上を安定させる'};
   return {label:'2027年試験対策期',focus:'過去問を時間内に解き、誤答分野を繰り返す'};
+}
+
+function getCareerProgress(){
+  const dates=Object.keys(DB).sort().reverse();
+  for(const date of dates){
+    const value=Number(DB[date]?.v?.careerLectureEnd);
+    if(Number.isFinite(value))return {lectureEnd:Math.max(0,Math.min(169,value)),date};
+  }
+  return {lectureEnd:0,date:null};
+}
+
+function getCareerStudyTasks(){
+  const progress=getCareerProgress();
+  if(progress.lectureEnd>=169){
+    return [
+      {id:'career_survey_theory',time:'15分',label:'弱点分野の総合講義・テキストを再確認',target:'弱点を1テーマ潰す'},
+      {id:'career_survey_text',time:'10分',label:'文書問題・法規を確認',target:'「3時間で押さえる文書問題」から1テーマ'},
+      {id:'career_survey_questions',time:'30分',label:'過去問題を時間を測って解く',target:'14問、正答率70%以上'},
+      {id:'career_error_log',time:'5分',label:'間違い直し',target:'誤答原因を分類して翌日の復習対象にする'}
+    ];
+  }
+  const start=progress.lectureEnd+1;
+  const end=Math.min(169,start+1);
+  const range=start===end?String(start).padStart(3,'0'):`${String(start).padStart(3,'0')}〜${String(end).padStart(3,'0')}`;
+  return CAREER_STUDY_TASKS.map(task=>task.id==='career_survey_theory'
+    ? {...task,label:'測量士補の総合講義動画',target:`次に視聴：L24総合講義 ${range}（${end-start+1}本）`}
+    : task);
 }
 
 function careerDayComplete(date){
@@ -1872,10 +1904,12 @@ function renderCareerStudy(){
   const checks=today().c||{};
   const weekDates=getCurrentWeekDates();
   const studyDays=weekDates.filter(careerDayComplete);
-  const done=CAREER_STUDY_TASKS.filter(task=>checks[task.id]).length;
-  const pct=Math.round(done/CAREER_STUDY_TASKS.length*100);
+  const tasks=getCareerStudyTasks();
+  const progress=getCareerProgress();
+  const done=tasks.filter(task=>checks[task.id]).length;
+  const pct=Math.round(done/tasks.length*100);
   const stage=getCareerStudyStage();
-  const rows=CAREER_STUDY_TASKS.map(task=>{
+  const rows=tasks.map(task=>{
     const checked=!!checks[task.id];
     return `<div class="check-item${checked?' checked':''}" onclick="toggleCareerStudy('${task.id}')">
       <div class="checkbox">${checked?'<span class="check-mark">✓</span>':''}</div>
@@ -1892,21 +1926,49 @@ function renderCareerStudy(){
         <div class="career-title">60歳定年を見据えたセカンドキャリア学習</div>
         <div class="career-stage">${stage.label}：${stage.focus}</div>
       </div>
-      <div class="career-count">${done}/${CAREER_STUDY_TASKS.length}</div>
+      <div class="career-count">${done}/${tasks.length}</div>
     </div>
-    <div class="quick-note">毎日60分。2027年に測量士補を取得し、その知識を土台に土地家屋調査士の学習へ進みます。試験日は公式発表後に更新します。</div>
+    <div class="quick-note">毎日60分。手元の講義169本（約24.4時間）、総合講義テキスト、2024過去問上・下巻を主教材に固定します。</div>
     <div class="career-roadmap">
-      <div class="career-roadmap-item"><b>現在〜2026年9月</b><span>測量士補の基礎を一巡</span></div>
-      <div class="career-roadmap-item"><b>2026年10〜12月</b><span>全範囲完成・分野別問題</span></div>
-      <div class="career-roadmap-item"><b>2027年1月〜試験</b><span>過去問・時間配分・弱点補強</span></div>
+      <div class="career-roadmap-item"><b>現在〜2026年9月末</b><span>講義001〜169と対応テキストを1周</span></div>
+      <div class="career-roadmap-item"><b>2026年10〜12月</b><span>過去問上・下巻、文書問題、弱点講義の再視聴</span></div>
+      <div class="career-roadmap-item"><b>2027年1月〜試験</b><span>年度別28問演習・時間配分・正答率75%を安定</span></div>
+    </div>
+    <div class="career-progress-row">
+      <div class="form-group"><label>総合講義の完了番号（0〜169）</label><input type="number" min="0" max="169" id="career-lecture-progress" value="${progress.lectureEnd}"></div>
+      <button type="button" class="btn btn-ghost" onclick="saveCareerProgress()">進捗を保存</button>
+      <span id="career-progress-msg" class="quick-note"></span>
     </div>
     <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--text2);margin-bottom:6px">
       <span>今日 ${pct}%</span><span>今週 ${studyDays.length}/7日</span>
     </div>
     <div class="progress" style="margin-bottom:10px"><div class="progress-fill" style="width:${pct}%;background:#3f6b45"></div></div>
     ${rows}
-    <div class="quick-note" style="margin-top:8px">休日の追加目標：過去問28問または90分の総復習を1回。疲労が強い日は、10問演習と誤答1問の復習を最低ラインにします。</div>
+    <details class="quick-details" style="margin:10px 0 0">
+      <summary>使用教材と後回しにする教材</summary>
+      <div class="quick-details-body career-materials">
+        <b>今使う：</b>「測量士補」フォルダのL24総合講義001〜169、「測量士補試験テキスト総合講義.pdf」、「測量士補試験2024過去問上巻・下巻」、「3時間で押さえる文書問題」。<br>
+        <b>測量士補合格後：</b>土地家屋調査士 民法動画163本、不動産登記法・調査士法、択一過去問、土地・建物の記述、複素数計算の順に進めます。今は調査士教材を広げません。
+      </div>
+    </details>
+    <div class="quick-note" style="margin-top:8px">週1回は新規講義を止め、過去問28問または90分の総復習に置き換えます。疲労が強い日は、過去問10問と誤答1問の復習を最低ラインにします。</div>
   </div>`;
+}
+
+async function saveCareerProgress(){
+  const input=document.getElementById('career-lecture-progress');
+  const msg=document.getElementById('career-progress-msg');
+  const value=Math.max(0,Math.min(169,parseInt(input?.value||0)));
+  const d=today();
+  if(!d.v)d.v={};
+  d.v.careerLectureEnd=value;
+  await saveDay(todayStr);
+  renderCareerStudy();
+  const nextMsg=document.getElementById('career-progress-msg');
+  if(nextMsg){
+    nextMsg.textContent=`${value}番まで保存しました`;
+    setTimeout(()=>nextMsg.textContent='',3000);
+  }
 }
 
 async function toggleCareerStudy(id){
@@ -3372,8 +3434,9 @@ function buildCoachContext(){
   const todayChecks=(today()&&today().c)||{};
   const ergometerDates=getCurrentWeekDates().filter(date=>!!DB[date]?.c?.ergometer_15);
   const careerWeekDates=getCurrentWeekDates().filter(careerDayComplete);
-  const careerDone=CAREER_STUDY_TASKS.filter(task=>todayChecks[task.id]).map(task=>task.label);
-  const careerMissed=CAREER_STUDY_TASKS.filter(task=>!todayChecks[task.id]).map(task=>task.label);
+  const careerTasks=getCareerStudyTasks();
+  const careerDone=careerTasks.filter(task=>todayChecks[task.id]).map(task=>task.label);
+  const careerMissed=careerTasks.filter(task=>!todayChecks[task.id]).map(task=>task.label);
   const officeDone=OFFICE_PLAN.filter(r=>todayChecks[r.id]).map(r=>r.label);
   const officeMissed=OFFICE_PLAN.filter(r=>!todayChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
   const meds=getMeds().filter(m=>m.active!==false);
@@ -3414,6 +3477,7 @@ function buildCoachContext(){
       goal:'2027年に測量士補を取得し、その後、土地家屋調査士を目指す',
       currentStage:getCareerStudyStage(),
       dailyMinutes:60,
+      lectureProgress:getCareerProgress(),
       todayDone:careerDone,
       todayMissed:careerMissed,
       completeDaysThisWeek:careerWeekDates.length
