@@ -376,6 +376,16 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .ergometer-toggle.checked{background:var(--ok-dim)}
 .ergometer-toggle strong,.ergometer-toggle small{display:block}
 .ergometer-toggle small{margin-top:2px;color:var(--text2)}
+.career-card{background:var(--bg2);border:1px solid var(--border);border-top:3px solid #3f6b45;border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.career-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.career-title{font-size:15px;font-weight:700;color:var(--text)}
+.career-stage{font-size:11px;color:#3f6b45;font-weight:700;margin-top:3px}
+.career-count{font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#3f6b45;white-space:nowrap}
+.career-roadmap{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.career-roadmap-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 10px}
+.career-roadmap-item b{display:block;font-size:11px;color:var(--text);margin-bottom:2px}
+.career-roadmap-item span{font-size:11px;color:var(--text2);line-height:1.45}
+.career-task-time{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#3f6b45;white-space:nowrap;margin-left:auto}
 
 @media(max-width:900px){
   body{font-size:16px;line-height:1.75}
@@ -402,6 +412,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
   .metric-routine-grid{grid-template-columns:1fr}
   .nikkei-learning-grid{grid-template-columns:1fr}
   .ergometer-plan{grid-template-columns:1fr}
+  .career-roadmap{grid-template-columns:1fr}
   .coach-grid{grid-template-columns:1fr}
   .coach-log-filter{grid-template-columns:1fr}
   .med-matrix{min-width:680px}
@@ -548,6 +559,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
     <div id="ergometer-body"></div>
     <div id="metric-routine-body"></div>
     <div id="routine-body"></div>
+    <div id="career-study-body"></div>
     <div id="office-plan-body"></div>
   </div>
 </div>
@@ -1092,6 +1104,12 @@ const ROUTINES = [
    affects:{bp:4,weight:3}, skipRate:{bp:0.15}, tags:['bp','weight']},
 ];
 const ERGOMETER_WEEK_TARGET = 3;
+const CAREER_STUDY_TASKS = [
+  {id:'career_survey_theory',time:'25分',label:'測量士補のテキスト・講義を1単元',target:'要点を3行で記録'},
+  {id:'career_survey_questions',time:'20分',label:'測量士補の問題演習',target:'10問解き、正答数を確認'},
+  {id:'career_error_log',time:'5分',label:'間違い直し',target:'誤答を1問以上、原因と公式まで確認'},
+  {id:'career_investigator_base',time:'10分',label:'土地家屋調査士への橋渡し学習',target:'民法・不動産登記法・作図のどれか1テーマ'}
+];
 
 const CATS = {
   morning: {label:'🌅 朝のルーティーン', color:'#7c5cbf'},
@@ -1837,12 +1855,75 @@ async function toggleErgometer(){
   renderDayDiagnosis();
 }
 
+function getCareerStudyStage(){
+  if(todayStr<'2026-10-01')return {label:'基礎固め期',focus:'測量法・測量計算・誤差・地図とGISの基本を一巡する'};
+  if(todayStr<'2027-01-01')return {label:'全範囲完成期',focus:'未学習分野をなくし、分野別問題の正答率70%を目指す'};
+  return {label:'2027年試験対策期',focus:'過去問を時間内に解き、誤答分野を繰り返す'};
+}
+
+function careerDayComplete(date){
+  const checks=DB[date]?.c||{};
+  return CAREER_STUDY_TASKS.every(task=>!!checks[task.id]);
+}
+
+function renderCareerStudy(){
+  const el=document.getElementById('career-study-body');
+  if(!el)return;
+  const checks=today().c||{};
+  const weekDates=getCurrentWeekDates();
+  const studyDays=weekDates.filter(careerDayComplete);
+  const done=CAREER_STUDY_TASKS.filter(task=>checks[task.id]).length;
+  const pct=Math.round(done/CAREER_STUDY_TASKS.length*100);
+  const stage=getCareerStudyStage();
+  const rows=CAREER_STUDY_TASKS.map(task=>{
+    const checked=!!checks[task.id];
+    return `<div class="check-item${checked?' checked':''}" onclick="toggleCareerStudy('${task.id}')">
+      <div class="checkbox">${checked?'<span class="check-mark">✓</span>':''}</div>
+      <div class="item-body">
+        <div class="item-title">${task.label}</div>
+        <div class="item-why">成果：${task.target}</div>
+      </div>
+      <div class="career-task-time">${task.time}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div class="career-card">
+    <div class="career-head">
+      <div>
+        <div class="career-title">60歳定年を見据えたセカンドキャリア学習</div>
+        <div class="career-stage">${stage.label}：${stage.focus}</div>
+      </div>
+      <div class="career-count">${done}/${CAREER_STUDY_TASKS.length}</div>
+    </div>
+    <div class="quick-note">毎日60分。2027年に測量士補を取得し、その知識を土台に土地家屋調査士の学習へ進みます。試験日は公式発表後に更新します。</div>
+    <div class="career-roadmap">
+      <div class="career-roadmap-item"><b>現在〜2026年9月</b><span>測量士補の基礎を一巡</span></div>
+      <div class="career-roadmap-item"><b>2026年10〜12月</b><span>全範囲完成・分野別問題</span></div>
+      <div class="career-roadmap-item"><b>2027年1月〜試験</b><span>過去問・時間配分・弱点補強</span></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--text2);margin-bottom:6px">
+      <span>今日 ${pct}%</span><span>今週 ${studyDays.length}/7日</span>
+    </div>
+    <div class="progress" style="margin-bottom:10px"><div class="progress-fill" style="width:${pct}%;background:#3f6b45"></div></div>
+    ${rows}
+    <div class="quick-note" style="margin-top:8px">休日の追加目標：過去問28問または90分の総復習を1回。疲労が強い日は、10問演習と誤答1問の復習を最低ラインにします。</div>
+  </div>`;
+}
+
+async function toggleCareerStudy(id){
+  if(!CAREER_STUDY_TASKS.some(task=>task.id===id))return;
+  const checks=today().c;
+  checks[id]=!checks[id];
+  await saveDay(todayStr);
+  renderCareerStudy();
+}
+
 function renderTodayDashboard(){
   renderDailyScore();
   renderPriority();
   renderTimeSummary();
   renderErgometer();
   renderMetricRoutines();
+  renderCareerStudy();
   renderOfficePlan();
   renderDayDiagnosis();
 }
@@ -3290,6 +3371,9 @@ function buildCoachContext(){
   const days=recentDays(30);
   const todayChecks=(today()&&today().c)||{};
   const ergometerDates=getCurrentWeekDates().filter(date=>!!DB[date]?.c?.ergometer_15);
+  const careerWeekDates=getCurrentWeekDates().filter(careerDayComplete);
+  const careerDone=CAREER_STUDY_TASKS.filter(task=>todayChecks[task.id]).map(task=>task.label);
+  const careerMissed=CAREER_STUDY_TASKS.filter(task=>!todayChecks[task.id]).map(task=>task.label);
   const officeDone=OFFICE_PLAN.filter(r=>todayChecks[r.id]).map(r=>r.label);
   const officeMissed=OFFICE_PLAN.filter(r=>!todayChecks[r.id]).map(r=>({label:r.label,time:r.time,target:r.target,tags:r.tags}));
   const meds=getMeds().filter(m=>m.active!==false);
@@ -3325,6 +3409,14 @@ function buildCoachContext(){
       target: ERGOMETER_WEEK_TARGET,
       done: ergometerDates.length,
       doneDates: ergometerDates
+    },
+    secondCareerStudy: {
+      goal:'2027年に測量士補を取得し、その後、土地家屋調査士を目指す',
+      currentStage:getCareerStudyStage(),
+      dailyMinutes:60,
+      todayDone:careerDone,
+      todayMissed:careerMissed,
+      completeDaysThisWeek:careerWeekDates.length
     },
     medicationPlan: {
       medicines: meds.map(m=>({name:m.name,category:MED_CATS[m.category]?.label||'その他',time:medTimeLabel(m),note:m.note||'',period:getMedPeriodText(m),activeToday:isMedActiveOn(m,todayStr)})),
