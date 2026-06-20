@@ -47,6 +47,10 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
 .hint{font-size:11px;color:var(--muted);line-height:1.6;margin-top:6px}
 .status{font-size:12px;color:var(--green);min-height:18px}
 .warning{color:var(--red)}
+.lecture-tools{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+.lecture-tools textarea{width:100%;min-height:150px;line-height:1.7}
+.lecture-actions{display:flex;gap:8px;flex-wrap:wrap;margin:9px 0}
+.exam-summary{white-space:pre-wrap;background:#f5f8f5;border:1px solid var(--line);border-radius:7px;padding:13px;font-size:13px;line-height:1.75;min-height:90px}
 @media(max-width:850px){.wrap{padding:14px}.grid{grid-template-columns:1fr}.top{padding:12px 14px}.viewer{aspect-ratio:4/3}}
 </style>
 </head>
@@ -83,6 +87,24 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
         </div>
         <div class="material-tabs" id="material-tabs"></div>
         <div class="viewer" id="viewer"><div class="empty">Drive共有URLを登録すると、PDFや動画をここに埋め込み表示できます。</div></div>
+        <div class="lecture-tools" id="lecture-tools" hidden>
+          <h2 id="lecture-tools-title">講義字幕・試験ポイント</h2>
+          <div class="sub">字幕原稿を保存すると、読み上げと試験論点だけのAI抽出ができます。</div>
+          <div class="field" style="margin-top:10px">
+            <label for="lecture-transcript">読み上げ用字幕</label>
+            <textarea id="lecture-transcript" placeholder="講義の文字起こしを貼り付けます。"></textarea>
+          </div>
+          <div class="lecture-actions">
+            <button class="btn" type="button" onclick="saveLectureNote()">字幕を保存</button>
+            <button class="btn primary" type="button" onclick="analyzeLecture()">試験ポイントをAI抽出</button>
+            <button class="btn" type="button" onclick="speakLecture('transcript')">字幕を読み上げ</button>
+            <button class="btn" type="button" onclick="speakLecture('summary')">要点を読み上げ</button>
+            <button class="btn" type="button" onclick="stopSpeaking()">停止</button>
+          </div>
+          <div id="lecture-status" class="status"></div>
+          <h2 style="margin-top:12px">試験で問われる点</h2>
+          <div id="exam-summary" class="exam-summary">字幕を保存し、「試験ポイントをAI抽出」を押してください。</div>
+        </div>
         <details>
           <summary>Google Drive教材リンクの登録</summary>
           <div class="settings">
@@ -109,6 +131,8 @@ const TOTAL_LECTURES=169;
 let DB={};
 let GOALS={};
 let selectedDate='';
+let currentLectureNumber=null;
+let currentLectureSummary='';
 
 function localDateString(date=new Date()){
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -194,7 +218,8 @@ function materialsFor(value){
   const materials=assignment.videos.map(number=>({
     name:`講義 ${String(number).padStart(3,'0')}`,
     url:videos[number]||'',
-    type:'video'
+    type:'video',
+    number
   }));
   return materials.concat(parsePdfLinks().map(item=>({...item,type:'pdf'})));
 }
@@ -232,6 +257,92 @@ function showMaterial(index){
   document.getElementById('viewer').innerHTML=item.url
     ? `<iframe src="${escapeHTML(drivePreview(item.url))}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe>`
     : `<div class="empty"><b>${escapeHTML(item.name)}</b><br>Drive共有URLが未登録です。<br>下の「Google Drive教材リンクの登録」から追加してください。</div>`;
+  const tools=document.getElementById('lecture-tools');
+  if(item.type==='video'&&item.number){
+    tools.hidden=false;
+    loadLectureNote(item.number,item.name);
+  }else{
+    tools.hidden=true;
+    currentLectureNumber=null;
+  }
+}
+async function loadLectureNote(number,title){
+  currentLectureNumber=number;
+  currentLectureSummary='';
+  document.getElementById('lecture-tools-title').textContent=`講義 ${String(number).padStart(3,'0')} 字幕・試験ポイント`;
+  document.getElementById('lecture-transcript').value='';
+  document.getElementById('exam-summary').textContent='保存済みデータを読み込んでいます。';
+  setLectureStatus('');
+  try{
+    const response=await fetch(`/api/study/lecture/${number}`);
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    if(currentLectureNumber!==number)return;
+    document.getElementById('lecture-transcript').value=data.lecture?.transcript||'';
+    currentLectureSummary=data.lecture?.exam_summary||'';
+    document.getElementById('exam-summary').textContent=currentLectureSummary||'字幕を保存し、「試験ポイントをAI抽出」を押してください。';
+  }catch{
+    if(currentLectureNumber!==number)return;
+    const cached=getCachedLecture(number);
+    document.getElementById('lecture-transcript').value=cached.transcript||'';
+    currentLectureSummary=cached.examSummary||'';
+    document.getElementById('exam-summary').textContent=currentLectureSummary||'字幕は端末内へ保存できます。AI抽出には公開ページからの接続が必要です。';
+  }
+}
+function lectureCacheKey(number){return `study_lecture_${number}`}
+function getCachedLecture(number){
+  try{return JSON.parse(localStorage.getItem(lectureCacheKey(number))||'{}')}catch{return {}}
+}
+async function saveLectureNote(){
+  if(!currentLectureNumber)return;
+  const transcript=document.getElementById('lecture-transcript').value.trim();
+  const payload={title:`L24総合講義 ${String(currentLectureNumber).padStart(3,'0')}`,transcript,examSummary:currentLectureSummary};
+  localStorage.setItem(lectureCacheKey(currentLectureNumber),JSON.stringify(payload));
+  setLectureStatus('端末内に保存しました。全端末へ同期中です。');
+  try{
+    const response=await fetch(`/api/study/lecture/${currentLectureNumber}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    setLectureStatus('字幕を全端末用に保存しました。');
+  }catch{setLectureStatus('端末内には保存しましたが、サーバー同期に失敗しました。',true)}
+}
+async function analyzeLecture(){
+  if(!currentLectureNumber)return;
+  const transcript=document.getElementById('lecture-transcript').value.trim();
+  if(!transcript){setLectureStatus('先に字幕原稿を入力してください。',true);return}
+  setLectureStatus('Geminiが試験で問われる点を抽出しています。');
+  try{
+    const response=await fetch(`/api/study/lecture/${currentLectureNumber}/analyze`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title:`L24総合講義 ${String(currentLectureNumber).padStart(3,'0')}`,transcript})
+    });
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
+    currentLectureSummary=data.examSummary||'';
+    document.getElementById('exam-summary').textContent=currentLectureSummary;
+    localStorage.setItem(lectureCacheKey(currentLectureNumber),JSON.stringify({transcript,examSummary:currentLectureSummary}));
+    setLectureStatus('試験ポイントを生成・保存しました。');
+  }catch(error){setLectureStatus(`AI抽出に失敗しました：${error.message}`,true)}
+}
+function speakLecture(type){
+  if(!('speechSynthesis' in window)){setLectureStatus('このブラウザは読み上げに対応していません。',true);return}
+  const text=type==='summary'?currentLectureSummary:document.getElementById('lecture-transcript').value.trim();
+  if(!text){setLectureStatus(type==='summary'?'先に試験ポイントを生成してください。':'字幕原稿を入力してください。',true);return}
+  speechSynthesis.cancel();
+  const utterance=new SpeechSynthesisUtterance(text);
+  utterance.lang='ja-JP';
+  utterance.rate=1;
+  speechSynthesis.speak(utterance);
+  setLectureStatus(type==='summary'?'試験ポイントを読み上げています。':'字幕を読み上げています。');
+}
+function stopSpeaking(){
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  setLectureStatus('読み上げを停止しました。');
+}
+function setLectureStatus(message,error=false){
+  const el=document.getElementById('lecture-status');
+  el.textContent=message;
+  el.classList.toggle('warning',error);
 }
 async function saveDay(){
   localStorage.setItem('hrtrack_db_cache',JSON.stringify(DB));
