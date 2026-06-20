@@ -50,7 +50,10 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
 .lecture-tools{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
 .lecture-tools textarea{width:100%;min-height:150px;line-height:1.7}
 .lecture-actions{display:flex;gap:8px;flex-wrap:wrap;margin:9px 0}
-.exam-summary{white-space:pre-wrap;background:#f5f8f5;border:1px solid var(--line);border-radius:7px;padding:13px;font-size:13px;line-height:1.75;min-height:90px}
+.exam-summary{white-space:pre-wrap;background:#f5f8f5;border:1px solid var(--line);border-radius:7px;padding:18px;font-size:15px;line-height:1.9;min-height:260px}
+.study-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.pdf-card{margin-top:16px}
+.setup-details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
 @media(max-width:850px){.wrap{padding:14px}.grid{grid-template-columns:1fr}.top{padding:12px 14px}.viewer{aspect-ratio:4/3}}
 </style>
 </head>
@@ -82,42 +85,45 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
     <section>
       <div class="card">
         <div class="date-title">
-          <div><h2>教材ビューアー</h2><div class="sub" id="viewer-caption">対象教材を選択してください</div></div>
-          <span class="badge" id="material-count">0件</span>
+          <div><h2>今日の試験要点</h2><div class="sub" id="viewer-caption">講義を選ぶと、問われる点だけを表示します。</div></div>
+          <span class="badge" id="material-count">0講義</span>
         </div>
         <div class="material-tabs" id="material-tabs"></div>
-        <div class="viewer" id="viewer"><div class="empty">Drive共有URLを登録すると、PDFや動画をここに埋め込み表示できます。</div></div>
-        <div class="lecture-tools" id="lecture-tools" hidden>
-          <h2 id="lecture-tools-title">講義字幕・試験ポイント</h2>
-          <div class="sub">字幕原稿を保存すると、読み上げと試験論点だけのAI抽出ができます。</div>
-          <div class="field" style="margin-top:10px">
-            <label for="lecture-youtube-url">一般公開YouTube URL</label>
-            <input type="url" id="lecture-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
-          </div>
-          <div class="lecture-actions">
-            <button class="btn primary" type="button" onclick="extractFromYouTube()">YouTubeからタイムライン要点を生成</button>
-          </div>
-          <div class="hint">限定公開・非公開動画はGeminiのYouTube URL解析対象外です。逐語字幕ではなく、時間帯別の学習用要約字幕を生成します。</div>
-          <div class="field" style="margin-top:10px">
-            <label for="lecture-transcript">読み上げ用タイムライン要約字幕</label>
-            <textarea id="lecture-transcript" placeholder="[00:00-02:30] この区間の重要説明..."></textarea>
-          </div>
-          <div class="lecture-actions">
-            <button class="btn" type="button" onclick="saveLectureNote()">字幕を保存</button>
-            <button class="btn primary" type="button" onclick="analyzeLecture()">試験ポイントをAI抽出</button>
-            <button class="btn" type="button" onclick="speakLecture('transcript')">字幕を読み上げ</button>
-            <button class="btn" type="button" onclick="speakLecture('summary')">要点を読み上げ</button>
+        <div class="lecture-tools" id="lecture-tools">
+          <h2 id="lecture-tools-title">本日の要点</h2>
+          <div class="study-actions">
+            <button class="btn primary" type="button" onclick="speakLecture('summary')">要点を読み上げ</button>
             <button class="btn" type="button" onclick="stopSpeaking()">停止</button>
           </div>
           <div id="lecture-status" class="status"></div>
-          <h2 style="margin-top:12px">試験で問われる点</h2>
-          <div id="exam-summary" class="exam-summary">字幕を保存し、「試験ポイントをAI抽出」を押してください。</div>
+          <div id="exam-summary" class="exam-summary">保存済みの試験要点を読み込んでいます。</div>
         </div>
-        <details>
-          <summary>Google Drive教材リンクの登録</summary>
+      </div>
+      <div class="card pdf-card">
+        <div class="date-title">
+          <div><h2>図・計算・作図のPDF</h2><div class="sub" id="pdf-caption">図形や式はPDFで確認します。</div></div>
+          <span class="badge" id="pdf-count">0件</span>
+        </div>
+        <div class="material-tabs" id="pdf-tabs"></div>
+        <div class="viewer" id="pdf-viewer"><div class="empty">PDFリンクが登録されると、ここに表示します。</div></div>
+        <details class="setup-details">
+          <summary>教材データの管理（通常は開かなくてよい）</summary>
           <div class="settings">
             <div class="field">
-              <label for="video-links">動画リンク（URLだけでも可。上から001、002…として登録）</label>
+              <label for="lecture-youtube-url">選択中講義の一般公開YouTube URL</label>
+              <input type="url" id="lecture-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+            <button class="btn" type="button" onclick="extractFromYouTube()" style="margin-top:8px">この講義の要点を生成</button>
+            <div class="field" style="margin-top:10px">
+              <label for="lecture-transcript">時間帯別の要約字幕</label>
+              <textarea id="lecture-transcript" placeholder="[00:00-02:30] この区間の重要説明..."></textarea>
+            </div>
+            <div class="lecture-actions">
+              <button class="btn" type="button" onclick="saveLectureNote()">要約字幕を保存</button>
+              <button class="btn" type="button" onclick="analyzeLecture()">字幕から試験要点を再生成</button>
+            </div>
+            <div class="field">
+              <label for="video-links">講義元URL一覧</label>
               <textarea id="video-links" placeholder="https://drive.google.com/file/d/ファイルID/view&#10;https://drive.google.com/file/d/ファイルID/view"></textarea>
             </div>
             <div class="field" style="margin-top:10px">
@@ -126,7 +132,7 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
             </div>
             <button class="btn primary" type="button" onclick="saveLibrary()" style="margin-top:10px">教材リンクを全端末用に保存</button>
             <div id="library-status" class="status" style="margin-top:8px"></div>
-            <div class="hint">Drive側は「リンクを知っている全員が閲覧可」にします。ローカルのG:ドライブパスは別端末では表示できません。</div>
+            <div class="hint">普段の学習ではこの欄を操作しません。図・計算・作図はPDF、本文は上の試験要点を使います。</div>
           </div>
         </details>
       </div>
@@ -187,8 +193,8 @@ function taskDefinitions(assignment){
   if(assignment.type==='before')return [['career_error_log','10分','準備日','教材リンクを登録する']];
   const label=assignment.videos.map(n=>String(n).padStart(3,'0')).join('・');
   return [
-    ['career_survey_theory','25分',`L24総合講義 ${label}`,'動画2本を視聴'],
-    ['career_survey_text','10分','総合講義テキスト','対応範囲の重要点を3つ記録'],
+    ['career_survey_theory','20分',`講義 ${label} の試験要点`,'問われる点・数字・公式・ひっかけを読む'],
+    ['career_survey_text','15分','図・計算・作図のPDF','対応する図表と計算例だけを確認'],
     ['career_survey_questions','20分','2024過去問 上・下巻','10問解いて正答数を確認'],
     ['career_error_log','5分','間違い直し','誤答を1問以上復習']
   ];
@@ -225,13 +231,12 @@ function drivePreview(url){
 function materialsFor(value){
   const assignment=assignmentFor(value);
   const videos=parseVideoLinks();
-  const materials=assignment.videos.map(number=>({
+  return assignment.videos.map(number=>({
     name:`講義 ${String(number).padStart(3,'0')}`,
     url:videos[number]||'',
     type:'video',
     number
   }));
-  return materials.concat(parsePdfLinks().map(item=>({...item,type:'pdf'})));
 }
 function render(){
   const day=getDay(selectedDate);
@@ -241,7 +246,7 @@ function render(){
   const pct=Math.round(done/tasks.length*100);
   const typeLabel={lecture:'講義1周目',review:'週次復習日',questions:'過去問期',before:'準備期間'}[assignment.type];
   document.getElementById('schedule-card').innerHTML=`
-    <div class="date-title"><div><h2>${formatJP(selectedDate)}</h2><div class="sub">${assignment.type==='lecture'?`対象動画：${assignment.videos.map(n=>'L24-'+String(n).padStart(3,'0')).join(' / ')}`:'新規動画はありません'}</div></div><span class="badge">${typeLabel}</span></div>
+    <div class="date-title"><div><h2>${formatJP(selectedDate)}</h2><div class="sub">${assignment.type==='lecture'?`対象講義：${assignment.videos.map(n=>String(n).padStart(3,'0')).join(' / ')}`:'新規講義はありません'}</div></div><span class="badge">${typeLabel}</span></div>
     <div class="progress"><div class="bar" style="width:${pct}%"></div></div>
     <div class="sub" style="text-align:right">${done}/${tasks.length} 完了</div>
     ${tasks.map(([id,time,label,target])=>`<label class="task"><input type="checkbox" ${day.c[id]?'checked':''} onchange="toggleTask('${id}',this.checked)"><span><b>${escapeHTML(label)}</b><span>${escapeHTML(target)}</span></span><span class="time">${time}</span></label>`).join('')}`;
@@ -250,39 +255,47 @@ function render(){
 }
 function renderMaterials(){
   const materials=materialsFor(selectedDate);
+  const pdfs=parsePdfLinks();
   const tabs=document.getElementById('material-tabs');
-  document.getElementById('material-count').textContent=`${materials.length}件`;
+  document.getElementById('material-count').textContent=`${materials.length}講義`;
   tabs.innerHTML=materials.map((item,index)=>`<button class="tab${index===0?' active':''}" onclick="showMaterial(${index})">${escapeHTML(item.name)}</button>`).join('');
   window.currentMaterials=materials;
   if(materials.length)showMaterial(0);
   else{
     document.getElementById('viewer-caption').textContent='対象教材なし';
-    document.getElementById('viewer').innerHTML='<div class="empty">この日の教材はありません。</div>';
+    currentLectureNumber=null;
+    currentLectureSummary='';
+    document.getElementById('lecture-tools-title').textContent='本日の要点';
+    document.getElementById('exam-summary').textContent='この日は新しい講義がありません。復習または過去問に取り組みます。';
   }
+  const pdfTabs=document.getElementById('pdf-tabs');
+  document.getElementById('pdf-count').textContent=`${pdfs.length}件`;
+  pdfTabs.innerHTML=pdfs.map((item,index)=>`<button class="tab${index===0?' active':''}" onclick="showPdf(${index})">${escapeHTML(item.name)}</button>`).join('');
+  window.currentPdfs=pdfs;
+  if(pdfs.length)showPdf(0);
+  else document.getElementById('pdf-viewer').innerHTML='<div class="empty">PDFが未登録です。図形・公式・作図資料の共有リンクだけを教材管理欄へ登録してください。</div>';
 }
 function showMaterial(index){
   const item=window.currentMaterials[index];
-  document.querySelectorAll('.tab').forEach((tab,i)=>tab.classList.toggle('active',i===index));
+  document.querySelectorAll('#material-tabs .tab').forEach((tab,i)=>tab.classList.toggle('active',i===index));
   document.getElementById('viewer-caption').textContent=item.name;
-  document.getElementById('viewer').innerHTML=item.url
-    ? `<iframe src="${escapeHTML(drivePreview(item.url))}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe>`
-    : `<div class="empty"><b>${escapeHTML(item.name)}</b><br>Drive共有URLが未登録です。<br>下の「Google Drive教材リンクの登録」から追加してください。</div>`;
-  const tools=document.getElementById('lecture-tools');
-  if(item.type==='video'&&item.number){
-    tools.hidden=false;
+  if(item.number){
     loadLectureNote(item.number,item.name);
     if(/(?:youtube\.com\/watch\?|youtu\.be\/)/i.test(item.url||'')){
       document.getElementById('lecture-youtube-url').value=item.url;
     }
-  }else{
-    tools.hidden=true;
-    currentLectureNumber=null;
   }
+}
+function showPdf(index){
+  const item=window.currentPdfs[index];
+  document.querySelectorAll('#pdf-tabs .tab').forEach((tab,i)=>tab.classList.toggle('active',i===index));
+  document.getElementById('pdf-caption').textContent=item.name;
+  document.getElementById('pdf-viewer').innerHTML=`<iframe src="${escapeHTML(drivePreview(item.url))}" loading="lazy"></iframe>`;
 }
 async function loadLectureNote(number,title){
   currentLectureNumber=number;
   currentLectureSummary='';
-  document.getElementById('lecture-tools-title').textContent=`講義 ${String(number).padStart(3,'0')} 字幕・試験ポイント`;
+  document.getElementById('lecture-tools-title').textContent=`講義 ${String(number).padStart(3,'0')} 試験で問われる点`;
   document.getElementById('lecture-transcript').value='';
   document.getElementById('lecture-youtube-url').value='';
   document.getElementById('exam-summary').textContent='保存済みデータを読み込んでいます。';
@@ -294,14 +307,14 @@ async function loadLectureNote(number,title){
     if(currentLectureNumber!==number)return;
     document.getElementById('lecture-transcript').value=data.lecture?.transcript||'';
     currentLectureSummary=data.lecture?.exam_summary||'';
-    document.getElementById('exam-summary').textContent=currentLectureSummary||'字幕を保存し、「試験ポイントをAI抽出」を押してください。';
+    document.getElementById('exam-summary').textContent=currentLectureSummary||'この講義の試験要点はまだ作成されていません。教材管理欄は初回作成時だけ使用します。';
   }catch{
     if(currentLectureNumber!==number)return;
     const cached=getCachedLecture(number);
     document.getElementById('lecture-transcript').value=cached.transcript||'';
     document.getElementById('lecture-youtube-url').value=cached.youtubeUrl||document.getElementById('lecture-youtube-url').value;
     currentLectureSummary=cached.examSummary||'';
-    document.getElementById('exam-summary').textContent=currentLectureSummary||'字幕は端末内へ保存できます。AI抽出には公開ページからの接続が必要です。';
+    document.getElementById('exam-summary').textContent=currentLectureSummary||'この講義の試験要点はまだありません。';
   }
 }
 async function extractFromYouTube(){
