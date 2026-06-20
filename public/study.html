@@ -54,6 +54,12 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
 .study-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
 .pdf-card{margin-top:16px}
 .setup-details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.upload-box{border:2px dashed #b9c7bb;border-radius:8px;padding:18px;text-align:center;background:#f8faf8;cursor:pointer;margin-top:12px}
+.upload-box:hover{border-color:var(--green);background:var(--green2)}
+.upload-list{margin-top:12px}
+.upload-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.upload-item-name{flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere}
+.upload-item button{border:0;background:none;color:var(--red);cursor:pointer}
 @media(max-width:850px){.wrap{padding:14px}.grid{grid-template-columns:1fr}.top{padding:12px 14px}.viewer{aspect-ratio:4/3}}
 </style>
 </head>
@@ -106,35 +112,17 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
         </div>
         <div class="material-tabs" id="pdf-tabs"></div>
         <div class="viewer" id="pdf-viewer"><div class="empty">PDFリンクが登録されると、ここに表示します。</div></div>
-        <details class="setup-details">
-          <summary>教材データの管理（通常は開かなくてよい）</summary>
-          <div class="settings">
-            <div class="field">
-              <label for="lecture-youtube-url">選択中講義の一般公開YouTube URL</label>
-              <input type="url" id="lecture-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
-            </div>
-            <button class="btn" type="button" onclick="extractFromYouTube()" style="margin-top:8px">この講義の要点を生成</button>
-            <div class="field" style="margin-top:10px">
-              <label for="lecture-transcript">時間帯別の要約字幕</label>
-              <textarea id="lecture-transcript" placeholder="[00:00-02:30] この区間の重要説明..."></textarea>
-            </div>
-            <div class="lecture-actions">
-              <button class="btn" type="button" onclick="saveLectureNote()">要約字幕を保存</button>
-              <button class="btn" type="button" onclick="analyzeLecture()">字幕から試験要点を再生成</button>
-            </div>
-            <div class="field">
-              <label for="video-links">講義元URL一覧</label>
-              <textarea id="video-links" placeholder="https://drive.google.com/file/d/ファイルID/view&#10;https://drive.google.com/file/d/ファイルID/view"></textarea>
-            </div>
-            <div class="field" style="margin-top:10px">
-              <label for="pdf-links">共通PDF（1行に「表示名 | URL」）</label>
-              <textarea id="pdf-links" placeholder="総合講義テキスト | https://drive.google.com/file/d/ファイルID/view&#10;過去問上巻 | https://drive.google.com/file/d/ファイルID/view"></textarea>
-            </div>
-            <button class="btn primary" type="button" onclick="saveLibrary()" style="margin-top:10px">教材リンクを全端末用に保存</button>
-            <div id="library-status" class="status" style="margin-top:8px"></div>
-            <div class="hint">普段の学習ではこの欄を操作しません。図・計算・作図はPDF、本文は上の試験要点を使います。</div>
-          </div>
-        </details>
+        <div class="setup-details">
+          <h2>教材をアップロード</h2>
+          <div class="sub">PDFとテキストを選ぶだけです。リンク登録は不要です。</div>
+          <label class="upload-box" for="material-files">
+            PDF・TXT・Markdownをここへ追加
+            <input type="file" id="material-files" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" multiple hidden>
+          </label>
+          <div class="hint">ファイル名に講義番号を入れると自動対応します。例：`001_試験要点.txt`、`001_図解.pdf`。番号なしPDFは全講義共通で表示します。</div>
+          <div id="upload-status" class="status" style="margin-top:8px"></div>
+          <div id="upload-list" class="upload-list"></div>
+        </div>
       </div>
     </section>
   </div>
@@ -147,6 +135,8 @@ let GOALS={};
 let selectedDate='';
 let currentLectureNumber=null;
 let currentLectureSummary='';
+let localMaterials=[];
+let currentPdfUrl='';
 
 function localDateString(date=new Date()){
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -217,10 +207,10 @@ function parseVideoLinks(){
   return result;
 }
 function parsePdfLinks(){
-  return String(GOALS.studyPdfLinks||'').split(/\r?\n/).map(line=>{
-    const [name,...rest]=line.split('|');
-    return {name:(name||'PDF').trim(),url:rest.join('|').trim()};
-  }).filter(item=>item.url);
+  const lectures=assignmentFor(selectedDate).videos;
+  return localMaterials
+    .filter(item=>item.kind==='pdf'&&(item.lectureNumber==null||lectures.includes(item.lectureNumber)))
+    .map(item=>({name:item.name,id:item.id,type:'pdf'}));
 }
 function drivePreview(url){
   const youtube=String(url).match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{6,})/);
@@ -230,10 +220,8 @@ function drivePreview(url){
 }
 function materialsFor(value){
   const assignment=assignmentFor(value);
-  const videos=parseVideoLinks();
   return assignment.videos.map(number=>({
     name:`講義 ${String(number).padStart(3,'0')}`,
-    url:videos[number]||'',
     type:'video',
     number
   }));
@@ -251,7 +239,6 @@ function render(){
     <div class="sub" style="text-align:right">${done}/${tasks.length} 完了</div>
     ${tasks.map(([id,time,label,target])=>`<label class="task"><input type="checkbox" ${day.c[id]?'checked':''} onchange="toggleTask('${id}',this.checked)"><span><b>${escapeHTML(label)}</b><span>${escapeHTML(target)}</span></span><span class="time">${time}</span></label>`).join('')}`;
   document.getElementById('study-note').value=day.v.studyNote||'';
-  renderMaterials();
 }
 function renderMaterials(){
   const materials=materialsFor(selectedDate);
@@ -281,23 +268,23 @@ function showMaterial(index){
   document.getElementById('viewer-caption').textContent=item.name;
   if(item.number){
     loadLectureNote(item.number,item.name);
-    if(/(?:youtube\.com\/watch\?|youtu\.be\/)/i.test(item.url||'')){
-      document.getElementById('lecture-youtube-url').value=item.url;
-    }
   }
 }
-function showPdf(index){
+async function showPdf(index){
   const item=window.currentPdfs[index];
   document.querySelectorAll('#pdf-tabs .tab').forEach((tab,i)=>tab.classList.toggle('active',i===index));
   document.getElementById('pdf-caption').textContent=item.name;
-  document.getElementById('pdf-viewer').innerHTML=`<iframe src="${escapeHTML(drivePreview(item.url))}" loading="lazy"></iframe>`;
+  const record=await getMaterialRecord(item.id);
+  if(currentPdfUrl)URL.revokeObjectURL(currentPdfUrl);
+  currentPdfUrl=record?.blob?URL.createObjectURL(record.blob):'';
+  document.getElementById('pdf-viewer').innerHTML=currentPdfUrl
+    ? `<iframe src="${escapeHTML(currentPdfUrl)}" loading="lazy"></iframe>`
+    : '<div class="empty">PDFを読み込めませんでした。</div>';
 }
 async function loadLectureNote(number,title){
   currentLectureNumber=number;
   currentLectureSummary='';
   document.getElementById('lecture-tools-title').textContent=`講義 ${String(number).padStart(3,'0')} 試験で問われる点`;
-  document.getElementById('lecture-transcript').value='';
-  document.getElementById('lecture-youtube-url').value='';
   document.getElementById('exam-summary').textContent='保存済みデータを読み込んでいます。';
   setLectureStatus('');
   try{
@@ -305,94 +292,29 @@ async function loadLectureNote(number,title){
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     const data=await response.json();
     if(currentLectureNumber!==number)return;
-    document.getElementById('lecture-transcript').value=data.lecture?.transcript||'';
-    currentLectureSummary=data.lecture?.exam_summary||'';
-    document.getElementById('exam-summary').textContent=currentLectureSummary||'この講義の試験要点はまだ作成されていません。教材管理欄は初回作成時だけ使用します。';
+    currentLectureSummary=await getLocalLectureText(number)||data.lecture?.exam_summary||'';
+    document.getElementById('exam-summary').textContent=currentLectureSummary||'この講義の試験要点はまだありません。`001_試験要点.txt`のようなファイルを下から追加してください。';
   }catch{
     if(currentLectureNumber!==number)return;
     const cached=getCachedLecture(number);
-    document.getElementById('lecture-transcript').value=cached.transcript||'';
-    document.getElementById('lecture-youtube-url').value=cached.youtubeUrl||document.getElementById('lecture-youtube-url').value;
-    currentLectureSummary=cached.examSummary||'';
-    document.getElementById('exam-summary').textContent=currentLectureSummary||'この講義の試験要点はまだありません。';
-  }
-}
-async function extractFromYouTube(){
-  if(!currentLectureNumber)return;
-  const youtubeUrl=document.getElementById('lecture-youtube-url').value.trim();
-  if(!/^https:\/\/(www\.)?(youtube\.com\/watch\?|youtu\.be\/)/i.test(youtubeUrl)){
-    setLectureStatus('一般公開YouTube動画のURLを入力してください。',true);
-    return;
-  }
-  setLectureStatus('Geminiが動画を解析しています。講義の長さにより数分かかる場合があります。');
-  try{
-    const response=await fetch(`/api/study/lecture/${currentLectureNumber}/youtube`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({youtubeUrl})
-    });
-    const text=await response.text();
-    let data={};
-    try{data=JSON.parse(text)}catch{}
-    if(!response.ok)throw new Error(data.error||text.slice(0,300)||`HTTP ${response.status}`);
-    document.getElementById('lecture-transcript').value=data.timeline||'';
-    currentLectureSummary=data.examSummary||'';
-    document.getElementById('exam-summary').textContent=currentLectureSummary||'試験ポイントを生成できませんでした。';
-    localStorage.setItem(lectureCacheKey(currentLectureNumber),JSON.stringify({
-      transcript:data.timeline||'',
-      examSummary:currentLectureSummary,
-      youtubeUrl
-    }));
-    setLectureStatus('タイムライン要約字幕と試験ポイントを生成・保存しました。');
-  }catch(error){
-    setLectureStatus(`YouTube解析に失敗しました：${error.message}`,true);
+    currentLectureSummary=cached.examSummary||await getLocalLectureText(number)||'';
+    document.getElementById('exam-summary').textContent=currentLectureSummary||'この講義の試験要点はまだありません。`001_試験要点.txt`のようなファイルを下から追加してください。';
   }
 }
 function lectureCacheKey(number){return `study_lecture_${number}`}
 function getCachedLecture(number){
   try{return JSON.parse(localStorage.getItem(lectureCacheKey(number))||'{}')}catch{return {}}
 }
-async function saveLectureNote(){
-  if(!currentLectureNumber)return;
-  const transcript=document.getElementById('lecture-transcript').value.trim();
-  const payload={title:`L24総合講義 ${String(currentLectureNumber).padStart(3,'0')}`,transcript,examSummary:currentLectureSummary};
-  localStorage.setItem(lectureCacheKey(currentLectureNumber),JSON.stringify(payload));
-  setLectureStatus('端末内に保存しました。全端末へ同期中です。');
-  try{
-    const response=await fetch(`/api/study/lecture/${currentLectureNumber}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(!response.ok)throw new Error(`HTTP ${response.status}`);
-    setLectureStatus('字幕を全端末用に保存しました。');
-  }catch{setLectureStatus('端末内には保存しましたが、サーバー同期に失敗しました。',true)}
-}
-async function analyzeLecture(){
-  if(!currentLectureNumber)return;
-  const transcript=document.getElementById('lecture-transcript').value.trim();
-  if(!transcript){setLectureStatus('先に字幕原稿を入力してください。',true);return}
-  setLectureStatus('Geminiが試験で問われる点を抽出しています。');
-  try{
-    const response=await fetch(`/api/study/lecture/${currentLectureNumber}/analyze`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({title:`L24総合講義 ${String(currentLectureNumber).padStart(3,'0')}`,transcript})
-    });
-    const data=await response.json();
-    if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
-    currentLectureSummary=data.examSummary||'';
-    document.getElementById('exam-summary').textContent=currentLectureSummary;
-    localStorage.setItem(lectureCacheKey(currentLectureNumber),JSON.stringify({transcript,examSummary:currentLectureSummary}));
-    setLectureStatus('試験ポイントを生成・保存しました。');
-  }catch(error){setLectureStatus(`AI抽出に失敗しました：${error.message}`,true)}
-}
-function speakLecture(type){
+function speakLecture(){
   if(!('speechSynthesis' in window)){setLectureStatus('このブラウザは読み上げに対応していません。',true);return}
-  const text=type==='summary'?currentLectureSummary:document.getElementById('lecture-transcript').value.trim();
-  if(!text){setLectureStatus(type==='summary'?'先に試験ポイントを生成してください。':'字幕原稿を入力してください。',true);return}
+  const text=currentLectureSummary;
+  if(!text){setLectureStatus('先に講義番号入りのテキスト教材を追加してください。',true);return}
   speechSynthesis.cancel();
   const utterance=new SpeechSynthesisUtterance(text);
   utterance.lang='ja-JP';
   utterance.rate=1;
   speechSynthesis.speak(utterance);
-  setLectureStatus(type==='summary'?'試験ポイントを読み上げています。':'字幕を読み上げています。');
+  setLectureStatus('試験ポイントを読み上げています。');
 }
 function stopSpeaking(){
   if('speechSynthesis' in window)speechSynthesis.cancel();
@@ -418,42 +340,104 @@ async function saveNote(){
   getDay(selectedDate).v.studyNote=document.getElementById('study-note').value;
   try{await saveDay();setStatus('学習記録を保存しました')}catch{setStatus('端末内に保存しました',true)}
 }
-async function saveLibrary(){
-  const videoInput=document.getElementById('video-links');
-  const rawLines=videoInput.value.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-  let nextNumber=1;
-  const normalizedLines=rawLines.map(line=>{
-    const numbered=line.match(/^(\d{1,3})\s+(https?:\/\/\S+)$/i);
-    if(numbered){
-      nextNumber=Math.max(nextNumber,Number(numbered[1])+1);
-      return `${String(Number(numbered[1])).padStart(3,'0')} ${numbered[2]}`;
-    }
-    if(/^https?:\/\/\S+$/i.test(line))return `${String(nextNumber++).padStart(3,'0')} ${line}`;
-    return line;
+function openMaterialDB(){
+  return new Promise((resolve,reject)=>{
+    const request=indexedDB.open('health-study-materials',1);
+    request.onupgradeneeded=()=>request.result.createObjectStore('materials',{keyPath:'id'});
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error);
   });
-  const invalid=normalizedLines.filter(line=>!/^\d{3}\s+https?:\/\/\S+$/i.test(line));
-  if(invalid.length){
-    setLibraryStatus('認識できない行があります。Driveの共有URLを1行に1件入力してください。',true);
-    return;
-  }
-  GOALS.studyVideoLinks=normalizedLines.join('\n');
-  GOALS.studyPdfLinks=document.getElementById('pdf-links').value.trim();
-  videoInput.value=GOALS.studyVideoLinks;
-  localStorage.setItem('hrtrack_goals_cache',JSON.stringify(GOALS));
-  renderMaterials();
-  setLibraryStatus(`動画${normalizedLines.length}件を端末内に保存しました。全端末へ同期中です。`);
-  try{
-    const response=await fetch('/api/goals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(GOALS)});
-    if(!response.ok)throw new Error();
-    setStatus('教材リンクを全端末用に保存しました');
-    setLibraryStatus(`保存完了：動画${normalizedLines.length}件を全端末で利用できます。`);
-  }catch{
-    setStatus('端末内だけに保存しました',true);
-    setLibraryStatus(`端末内には保存しましたが、サーバー同期に失敗しました。公開URLから再度お試しください。`,true);
-  }
 }
-function setLibraryStatus(message,error=false){
-  const el=document.getElementById('library-status');
+async function putMaterial(record){
+  const db=await openMaterialDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('materials','readwrite');
+    tx.objectStore('materials').put(record);
+    tx.oncomplete=resolve;
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+async function getMaterialRecord(id){
+  const db=await openMaterialDB();
+  return new Promise((resolve,reject)=>{
+    const request=db.transaction('materials').objectStore('materials').get(id);
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error);
+  });
+}
+async function getAllMaterials(){
+  const db=await openMaterialDB();
+  return new Promise((resolve,reject)=>{
+    const request=db.transaction('materials').objectStore('materials').getAll();
+    request.onsuccess=()=>resolve(request.result||[]);
+    request.onerror=()=>reject(request.error);
+  });
+}
+async function deleteMaterial(id){
+  const db=await openMaterialDB();
+  await new Promise((resolve,reject)=>{
+    const tx=db.transaction('materials','readwrite');
+    tx.objectStore('materials').delete(id);
+    tx.oncomplete=resolve;
+    tx.onerror=()=>reject(tx.error);
+  });
+  await loadLocalMaterials();
+}
+function deleteUploadedMaterial(encodedId){
+  deleteMaterial(decodeURIComponent(encodedId));
+}
+function lectureNumberFromName(name){
+  const match=String(name).match(/(?:^|\D)(\d{3})(?:\D|$)/);
+  const number=match?Number(match[1]):null;
+  return number>=1&&number<=TOTAL_LECTURES?number:null;
+}
+async function handleMaterialFiles(files){
+  const accepted=[...files].filter(file=>/\.pdf$|\.(txt|md)$/i.test(file.name));
+  if(!accepted.length){setUploadStatus('PDF、TXT、Markdownファイルを選択してください。',true);return}
+  setUploadStatus(`${accepted.length}件を保存しています。`);
+  try{
+    for(const file of accepted){
+      const kind=/\.pdf$/i.test(file.name)?'pdf':'text';
+      const id=`${file.name}-${file.size}-${file.lastModified}`;
+      await putMaterial({
+        id,
+        name:file.name,
+        kind,
+        lectureNumber:lectureNumberFromName(file.name),
+        text:kind==='text'?await file.text():'',
+        blob:kind==='pdf'?file:null,
+        size:file.size,
+        updatedAt:new Date().toISOString()
+      });
+    }
+    await loadLocalMaterials();
+    setUploadStatus(`${accepted.length}件を保存しました。すぐ学習に使えます。`);
+  }catch(error){setUploadStatus(`保存に失敗しました：${error.message}`,true)}
+}
+async function loadLocalMaterials(){
+  try{
+    localMaterials=await getAllMaterials();
+    localMaterials.sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+    renderUploadList();
+    renderMaterials();
+  }catch(error){setUploadStatus(`教材を読み込めませんでした：${error.message}`,true)}
+}
+async function getLocalLectureText(number){
+  const item=localMaterials.find(material=>material.kind==='text'&&material.lectureNumber===number);
+  return item?.text||'';
+}
+function renderUploadList(){
+  const el=document.getElementById('upload-list');
+  if(!el)return;
+  if(!localMaterials.length){el.innerHTML='<div class="hint">アップロード済み教材はありません。</div>';return}
+  el.innerHTML=localMaterials.map(item=>`<div class="upload-item">
+    <span class="badge">${item.kind==='pdf'?'PDF':'文字'}</span>
+    <span class="upload-item-name">${escapeHTML(item.name)}${item.lectureNumber?`（講義${String(item.lectureNumber).padStart(3,'0')}）`:'（共通）'}</span>
+    <button type="button" onclick="deleteUploadedMaterial('${encodeURIComponent(item.id)}')">削除</button>
+  </div>`).join('');
+}
+function setUploadStatus(message,error=false){
+  const el=document.getElementById('upload-status');
   el.textContent=message;
   el.classList.toggle('warning',error);
 }
@@ -478,11 +462,15 @@ async function init(){
     try{GOALS=JSON.parse(localStorage.getItem('hrtrack_goals_cache')||'{}')}catch{}
     setStatus('オフラインデータを表示しています',true);
   }
-  document.getElementById('video-links').value=GOALS.studyVideoLinks||'';
-  document.getElementById('pdf-links').value=GOALS.studyPdfLinks||'';
   const requested=new URLSearchParams(location.search).get('date');
   setDate(/^\d{4}-\d{2}-\d{2}$/.test(requested||'')?requested:localDateString());
   document.getElementById('study-date').addEventListener('change',event=>setDate(event.target.value));
+  const fileInput=document.getElementById('material-files');
+  fileInput.addEventListener('change',event=>handleMaterialFiles(event.target.files));
+  const uploadBox=document.querySelector('.upload-box');
+  uploadBox.addEventListener('dragover',event=>event.preventDefault());
+  uploadBox.addEventListener('drop',event=>{event.preventDefault();handleMaterialFiles(event.dataTransfer.files)});
+  await loadLocalMaterials();
 }
 init();
 </script>
