@@ -91,8 +91,16 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
           <h2 id="lecture-tools-title">講義字幕・試験ポイント</h2>
           <div class="sub">字幕原稿を保存すると、読み上げと試験論点だけのAI抽出ができます。</div>
           <div class="field" style="margin-top:10px">
-            <label for="lecture-transcript">読み上げ用字幕</label>
-            <textarea id="lecture-transcript" placeholder="講義の文字起こしを貼り付けます。"></textarea>
+            <label for="lecture-youtube-url">一般公開YouTube URL</label>
+            <input type="url" id="lecture-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
+          </div>
+          <div class="lecture-actions">
+            <button class="btn primary" type="button" onclick="extractFromYouTube()">YouTubeからタイムライン要点を生成</button>
+          </div>
+          <div class="hint">限定公開・非公開動画はGeminiのYouTube URL解析対象外です。逐語字幕ではなく、時間帯別の学習用要約字幕を生成します。</div>
+          <div class="field" style="margin-top:10px">
+            <label for="lecture-transcript">読み上げ用タイムライン要約字幕</label>
+            <textarea id="lecture-transcript" placeholder="[00:00-02:30] この区間の重要説明..."></textarea>
           </div>
           <div class="lecture-actions">
             <button class="btn" type="button" onclick="saveLectureNote()">字幕を保存</button>
@@ -209,6 +217,8 @@ function parsePdfLinks(){
   }).filter(item=>item.url);
 }
 function drivePreview(url){
+  const youtube=String(url).match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{6,})/);
+  if(youtube)return `https://www.youtube.com/embed/${youtube[1]}`;
   const match=String(url).match(/\/d\/([a-zA-Z0-9_-]+)/)||String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/);
   return match?`https://drive.google.com/file/d/${match[1]}/preview`:url;
 }
@@ -261,6 +271,9 @@ function showMaterial(index){
   if(item.type==='video'&&item.number){
     tools.hidden=false;
     loadLectureNote(item.number,item.name);
+    if(/(?:youtube\.com\/watch\?|youtu\.be\/)/i.test(item.url||'')){
+      document.getElementById('lecture-youtube-url').value=item.url;
+    }
   }else{
     tools.hidden=true;
     currentLectureNumber=null;
@@ -271,6 +284,7 @@ async function loadLectureNote(number,title){
   currentLectureSummary='';
   document.getElementById('lecture-tools-title').textContent=`講義 ${String(number).padStart(3,'0')} 字幕・試験ポイント`;
   document.getElementById('lecture-transcript').value='';
+  document.getElementById('lecture-youtube-url').value='';
   document.getElementById('exam-summary').textContent='保存済みデータを読み込んでいます。';
   setLectureStatus('');
   try{
@@ -285,8 +299,40 @@ async function loadLectureNote(number,title){
     if(currentLectureNumber!==number)return;
     const cached=getCachedLecture(number);
     document.getElementById('lecture-transcript').value=cached.transcript||'';
+    document.getElementById('lecture-youtube-url').value=cached.youtubeUrl||document.getElementById('lecture-youtube-url').value;
     currentLectureSummary=cached.examSummary||'';
     document.getElementById('exam-summary').textContent=currentLectureSummary||'字幕は端末内へ保存できます。AI抽出には公開ページからの接続が必要です。';
+  }
+}
+async function extractFromYouTube(){
+  if(!currentLectureNumber)return;
+  const youtubeUrl=document.getElementById('lecture-youtube-url').value.trim();
+  if(!/^https:\/\/(www\.)?(youtube\.com\/watch\?|youtu\.be\/)/i.test(youtubeUrl)){
+    setLectureStatus('一般公開YouTube動画のURLを入力してください。',true);
+    return;
+  }
+  setLectureStatus('Geminiが動画を解析しています。講義の長さにより数分かかる場合があります。');
+  try{
+    const response=await fetch(`/api/study/lecture/${currentLectureNumber}/youtube`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({youtubeUrl})
+    });
+    const text=await response.text();
+    let data={};
+    try{data=JSON.parse(text)}catch{}
+    if(!response.ok)throw new Error(data.error||text.slice(0,300)||`HTTP ${response.status}`);
+    document.getElementById('lecture-transcript').value=data.timeline||'';
+    currentLectureSummary=data.examSummary||'';
+    document.getElementById('exam-summary').textContent=currentLectureSummary||'試験ポイントを生成できませんでした。';
+    localStorage.setItem(lectureCacheKey(currentLectureNumber),JSON.stringify({
+      transcript:data.timeline||'',
+      examSummary:currentLectureSummary,
+      youtubeUrl
+    }));
+    setLectureStatus('タイムライン要約字幕と試験ポイントを生成・保存しました。');
+  }catch(error){
+    setLectureStatus(`YouTube解析に失敗しました：${error.message}`,true);
   }
 }
 function lectureCacheKey(number){return `study_lecture_${number}`}
