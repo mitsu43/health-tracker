@@ -211,6 +211,7 @@ code,pre,.mono{font-family:'DM Mono',monospace}
 .med-photo-preview img{width:120px;max-height:120px;object-fit:cover;border:1px solid var(--border);border-radius:8px;background:var(--bg2);cursor:zoom-in}
 .meal-ai-comment{margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.7;color:var(--text2);white-space:pre-wrap}
 .meal-ai-comment:empty{display:none}
+#meal-comment-daily_total{font-size:13px;line-height:1.85;padding:15px 16px}
 .meal-ai-actions{display:flex;justify-content:flex-end;margin-top:6px}
 .meal-ai-delete{border:1px solid rgba(192,57,43,0.25);background:transparent;color:var(--danger);border-radius:999px;padding:4px 9px;font-size:11px;cursor:pointer}
 .meal-ai-delete:hover{background:var(--danger-dim)}
@@ -3051,7 +3052,9 @@ async function analyzeMealSlot(slot){
   const btn=[...document.querySelectorAll('button')].find(b=>b.getAttribute('onclick')===`analyzeMealSlot('${slot}')`);
   try{
     if(btn)btn.disabled=true;
-    if(comment)comment.textContent='AIが良い点・悪い点・不足しそうなものを詳しく確認しています...';
+    if(comment)comment.textContent=slot==='daily_total'
+      ? 'AIが朝・昼・夜・間食・飲み物・サプリを横断し、1日の総評、良い点、惜しい点、不足、重複、明日の補い方、優先順位を作成しています...'
+      : 'AIが良い点・悪い点・不足しそうなものを詳しく確認しています...';
     const context={
       date:recDateStr,
       slot,
