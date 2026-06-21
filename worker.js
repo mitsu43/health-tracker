@@ -114,6 +114,109 @@ async function handleAPI(request, url, method, env) {
       return json({ ok: true }, cors);
     }
 
+    const studyLectureMatch = url.pathname.match(/^\/api\/study\/lecture\/(\d{1,3})$/);
+    const studyAnalyzeMatch = url.pathname.match(/^\/api\/study\/lecture\/(\d{1,3})\/analyze$/);
+    const studyYouTubeMatch = url.pathname.match(/^\/api\/study\/lecture\/(\d{1,3})\/youtube$/);
+
+    if ((studyLectureMatch || studyAnalyzeMatch || studyYouTubeMatch) && !env.DB) {
+      return json({ error: "DB is not configured" }, cors, 500);
+    }
+
+    if (studyLectureMatch && method === "GET") {
+      await ensureStudyLectureTable(env);
+      const lectureNumber = Number(studyLectureMatch[1]);
+      const row = await env.DB.prepare(`
+        SELECT lecture_number, title, transcript, exam_summary, updated_at
+        FROM study_lecture_notes WHERE lecture_number = ?
+      `).bind(lectureNumber).first();
+      return json({
+        ok: true,
+        lecture: row || {
+          lecture_number: lectureNumber,
+          title: "",
+          transcript: "",
+          exam_summary: "",
+          updated_at: null,
+        },
+      }, cors);
+    }
+
+    if (studyLectureMatch && method === "POST") {
+      await ensureStudyLectureTable(env);
+      const lectureNumber = Number(studyLectureMatch[1]);
+      const body = await request.json();
+      const title = String(body.title || "").slice(0, 300);
+      const transcript = String(body.transcript || "").slice(0, 80000);
+      const examSummary = String(body.examSummary || "").slice(0, 20000);
+      await env.DB.prepare(`
+        INSERT INTO study_lecture_notes
+          (lecture_number, title, transcript, exam_summary, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(lecture_number) DO UPDATE SET
+          title = excluded.title,
+          transcript = excluded.transcript,
+          exam_summary = excluded.exam_summary,
+          updated_at = excluded.updated_at
+      `).bind(lectureNumber, title, transcript, examSummary).run();
+      return json({ ok: true }, cors);
+    }
+
+    if (studyAnalyzeMatch && method === "POST") {
+      if (!env.GEMINI_API_KEY) {
+        return json({ error: "GEMINI_API_KEY is not configured" }, cors, 500);
+      }
+      await ensureStudyLectureTable(env);
+      const lectureNumber = Number(studyAnalyzeMatch[1]);
+      const body = await request.json();
+      const title = String(body.title || `講義 ${lectureNumber}`).slice(0, 300);
+      const transcript = String(body.transcript || "").trim().slice(0, 80000);
+      if (!transcript) {
+        return json({ error: "transcript is required" }, cors, 400);
+      }
+      const examSummary = await callGeminiStudySummary(env, lectureNumber, title, transcript);
+      await env.DB.prepare(`
+        INSERT INTO study_lecture_notes
+          (lecture_number, title, transcript, exam_summary, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(lecture_number) DO UPDATE SET
+          title = excluded.title,
+          transcript = excluded.transcript,
+          exam_summary = excluded.exam_summary,
+          updated_at = excluded.updated_at
+      `).bind(lectureNumber, title, transcript, examSummary).run();
+      return json({ ok: true, examSummary }, cors);
+    }
+
+    if (studyYouTubeMatch && method === "POST") {
+      if (!env.GEMINI_API_KEY) {
+        return json({ error: "GEMINI_API_KEY is not configured" }, cors, 500);
+      }
+      await ensureStudyLectureTable(env);
+      const lectureNumber = Number(studyYouTubeMatch[1]);
+      const body = await request.json();
+      const youtubeUrl = String(body.youtubeUrl || "").trim().slice(0, 1000);
+      if (!/^https:\/\/(www\.)?(youtube\.com\/watch\?|youtu\.be\/)/i.test(youtubeUrl)) {
+        return json({ error: "public YouTube URL is required" }, cors, 400);
+      }
+      const result = await callGeminiYouTubeStudy(env, lectureNumber, youtubeUrl);
+      await env.DB.prepare(`
+        INSERT INTO study_lecture_notes
+          (lecture_number, title, transcript, exam_summary, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(lecture_number) DO UPDATE SET
+          title = excluded.title,
+          transcript = excluded.transcript,
+          exam_summary = excluded.exam_summary,
+          updated_at = excluded.updated_at
+      `).bind(
+        lectureNumber,
+        result.title || `L24総合講義 ${String(lectureNumber).padStart(3, "0")}`,
+        result.timeline || "",
+        result.examSummary || ""
+      ).run();
+      return json({ ok: true, ...result }, cors);
+    }
+
     // POST /api/meal/analyze — Geminiによる食事写真解析
     if (url.pathname === "/api/meal/analyze" && method === "POST") {
       if (!env.GEMINI_API_KEY) {
@@ -195,6 +298,131 @@ async function handleAPI(request, url, method, env) {
 
 function json(data, headers, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+async function ensureStudyLectureTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS study_lecture_notes (
+      lecture_number INTEGER PRIMARY KEY,
+      title TEXT DEFAULT '',
+      transcript TEXT DEFAULT '',
+      exam_summary TEXT DEFAULT '',
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+}
+
+async function callGeminiStudySummary(env, lectureNumber, title, transcript) {
+  const preferredModel = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const models = [preferredModel, "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+    .filter((model, index, all) => model && all.indexOf(model) === index);
+  const prompt = [
+    "あなたは測量士補試験の受験指導者です。",
+    `対象: L24測量士補 総合講義 ${String(lectureNumber).padStart(3, "0")} ${title}`,
+    "下の講義字幕から、試験で問われる内容だけを抽出してください。",
+    "講義全体の感想、導入、雑談、重複説明は省いてください。",
+    "字幕にない事実を推測で追加しないでください。",
+    "回答は日本語で、Markdown記号は使わず、必ず次の見出し順にしてください。",
+    "【この講義で問われること】出題される論点を最大5項目。",
+    "【必ず覚える数字・用語】定義、期限、数値、単位。なければ「なし」。",
+    "【計算・公式】公式、使う条件、単位、典型的な計算手順。なければ「なし」。",
+    "【ひっかけ】混同しやすい選択肢や誤りの見抜き方。",
+    "【一問一答】本試験風の短い問題を3問と、その直後に答え。",
+    "各項目は簡潔にし、復習時間5分以内で読める分量にしてください。",
+    "",
+    "講義字幕:",
+    transcript,
+  ].join("\n");
+  let lastError = "";
+  for (const model of models) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.15, maxOutputTokens: 1800 },
+      }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n").trim()
+        || "試験ポイントを生成できませんでした。";
+    }
+    lastError = `Gemini API error ${response.status}: ${(await response.text()).slice(0, 300)}`;
+    if (![429, 503].includes(response.status)) throw new Error(lastError);
+  }
+  throw new Error(lastError || "Gemini API request failed");
+}
+
+async function callGeminiYouTubeStudy(env, lectureNumber, youtubeUrl) {
+  const preferredModel = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const models = [preferredModel, "gemini-2.5-flash-lite"]
+    .filter((model, index, all) => model && all.indexOf(model) === index);
+  const prompt = [
+    "あなたは測量士補試験の受験指導者です。",
+    `対象講義番号: ${String(lectureNumber).padStart(3, "0")}`,
+    "この一般公開YouTube動画の音声と画面を確認してください。",
+    "逐語的な全文書き起こしは作らず、学習用の時間帯別要約字幕を作ってください。",
+    "出力は日本語で、必ず次の形式にしてください。",
+    "【講義タイトル】",
+    "動画から判断できる短い題名",
+    "【タイムライン要約字幕】",
+    "[MM:SS-MM:SS] その区間で説明している内容を1〜3文",
+    "重要な論点ごとに区切り、雑談・挨拶・重複は省く。",
+    "【この講義で問われること】",
+    "本試験で問われる論点を最大5項目。",
+    "【必ず覚える数字・用語】",
+    "定義、数値、単位。なければ「なし」。",
+    "【計算・公式】",
+    "公式、条件、単位、解法手順。なければ「なし」。",
+    "【ひっかけ】",
+    "混同しやすい選択肢や誤りの見抜き方。",
+    "【一問一答】",
+    "本試験風の短い問題3問と答え。",
+    "動画にない内容を推測で追加しない。",
+  ].join("\n");
+  let lastError = "";
+  for (const model of models) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { file_data: { file_uri: youtubeUrl } },
+            { text: prompt },
+          ],
+        }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 5000 },
+      }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n").trim() || "";
+      const title = extractStudySection(text, "講義タイトル");
+      const timeline = extractStudySection(text, "タイムライン要約字幕");
+      const examStart = text.indexOf("【この講義で問われること】");
+      return {
+        title: title || `L24総合講義 ${String(lectureNumber).padStart(3, "0")}`,
+        timeline: timeline || text,
+        examSummary: examStart >= 0 ? text.slice(examStart).trim() : text,
+      };
+    }
+    lastError = `Gemini API error ${response.status}: ${(await response.text()).slice(0, 500)}`;
+    if (![429, 503].includes(response.status)) throw new Error(lastError);
+  }
+  throw new Error(lastError || "YouTube video analysis failed");
+}
+
+function extractStudySection(text, heading) {
+  const marker = `【${heading}】`;
+  const start = text.indexOf(marker);
+  if (start < 0) return "";
+  const contentStart = start + marker.length;
+  const next = text.indexOf("【", contentStart);
+  return text.slice(contentStart, next < 0 ? text.length : next).trim();
 }
 
 function compactCoachContext(value, depth = 0) {
@@ -325,19 +553,38 @@ async function callGeminiMealComment(env, context) {
   const slot = String(context.slot || "").slice(0, 40);
   const meal = String(context.meal || "").trim().slice(0, 1600);
   if (!meal) throw new Error("meal is required");
+  const isDailyTotal = slot === "daily_total";
 
-  const prompt = [
+  const commonPrompt = [
     "あなたは健康管理アプリの食事ログに短いコメントを出すアシスタントです。",
     "診断、治療判断、厳密な栄養計算はしません。見えている食事内容から、生活改善の観点で実用的にコメントしてください。",
-    "出力は日本語で、必ず次の4項目をこの見出し名のまま表示してください。各項目は1〜2文、120〜180字程度で、理由を具体的に書いてください。",
-    "良い点: 何が良いのか、どの食材・食べ方・量・タイミングが、血圧/尿酸値/LDL/HbA1c/Hb/Ht/体重/百歳まで動ける体づくりのどれにどう役立つのかを書く。",
-    "悪い点: 何が悪い、または惜しいのかを具体的に書く。悪い点が少ない場合でも「悪い点は大きくないが、惜しい点は...」として必ず表示する。塩分、糖質、脂質、たんぱく質不足、食物繊維不足、夜遅い食事、飲酒、サプリの重複や過量など、該当する理由を書く。",
-    "不足・補充したいもの: その食事または1日トータルで不足しそうな栄養・食品群を具体的に書く。例: たんぱく質、魚/EPA、食物繊維、野菜、海藻、発酵食品、カルシウム、ビタミンD、マグネシウム、水分など。サプリより食品で足せる場合は食品を優先して提案する。",
-    "次回の一手: 次に同じ場面で何を1つ変えればよいか、現実的な置き換えや追加を1つだけ書く。",
-    "slot が daily_total の場合は、朝食・昼食・夕食・間食・飲み物・サプリを1日合計として見て、補充したほうがよいものを必ず具体的に書いてください。",
     "良い/悪いを断定しすぎず、食事ログから分かる範囲で説明してください。ただし「悪い点」見出しは必ず出してください。",
-    "途中で切れないように、全体を700字以内に収め、最後の「次回の一手」まで必ず完結させてください。",
     "slot が supplements の場合、効果を断定せず、服薬中の薬があるなら医師・薬剤師に確認する注意を必ず含めてください。",
+  ];
+  const dailyPrompt = [
+    "これは1日トータル評価です。短いコメントではなく、朝食・昼食・夕食・間食・飲み物・サプリを横断して詳しく評価してください。",
+    "出力は日本語で、必ず以下の7見出しを順番どおりにすべて表示してください。見出しを省略しないでください。",
+    "【1日の総評】3〜5文。食事全体の傾向と最優先課題をまとめる。",
+    "【良い点】最低4項目。各項目で具体的な食品名を挙げ、それが血圧・尿酸値・LDL・HbA1c・Hb/Ht・体重・筋力維持のどれにどう役立つかを書く。",
+    "【悪い点・惜しい点】最低4項目。大きな悪い点がなくても、量・頻度・塩分・糖質・脂質・たんぱく質・食物繊維・食事時間・飲酒・サプリ重複の観点から惜しい点を具体化する。",
+    "【1日で不足しそうなもの】最低4項目。栄養素だけでなく、補える食品例と目安量を併記する。推測の場合は「記録上は」と明記する。",
+    "【摂りすぎ・重複の確認】食品とサプリを合算し、重複や過量の可能性を確認する。判断できなければ、製品量や成分表示の確認事項を書く。",
+    "【明日補うなら】朝・昼・夜・間食ごとに、追加または置き換えを1つずつ具体的に書く。",
+    "【優先順位】第1〜第3優先を示し、最後に「最低限これだけ」を1つ書く。",
+    "全体は1200〜2000字を目安にし、同じ表現の繰り返しを避けて最後まで完結させてください。",
+    "サプリより食品で補える場合は食品を優先してください。鉄サプリなどの開始を自己判断で勧めず、服薬との併用は医師・薬剤師への確認を促してください。",
+  ];
+  const singlePrompt = [
+    "出力は日本語で、必ず次の4項目をこの見出し名のまま表示してください。各項目は1〜2文、120〜180字程度で、理由を具体的に書いてください。",
+    "良い点: 具体的な食材・食べ方・量・タイミングと健康上の意味を書く。",
+    "悪い点: 悪い点が少ない場合も「惜しい点」を必ず具体的に書く。",
+    "不足・補充したいもの: 不足しそうな栄養・食品群と食品例を書く。",
+    "次回の一手: 現実的な置き換えや追加を1つ書く。",
+    "全体を700字以内に収め、最後まで完結させてください。",
+  ];
+  const prompt = [
+    ...commonPrompt,
+    ...(isDailyTotal ? dailyPrompt : singlePrompt),
     "",
     `対象: ${slot}`,
     `食事/サプリ: ${meal}`,
@@ -355,16 +602,20 @@ async function callGeminiMealComment(env, context) {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.25,
-          maxOutputTokens: 1800,
+          temperature: isDailyTotal ? 0.3 : 0.25,
+          maxOutputTokens: isDailyTotal ? 4000 : 1800,
         },
       }),
     });
 
     if (res.ok) {
       const payload = await res.json();
-      return payload.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
+      let comment = payload.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim()
         || "コメントを作成できませんでした。";
+      if (isDailyTotal && dailyMealCommentNeedsExpansion(comment)) {
+        comment = await expandDailyMealComment(env, model, prompt, comment);
+      }
+      return comment;
     }
 
     const errText = await res.text();
@@ -375,6 +626,45 @@ async function callGeminiMealComment(env, context) {
   }
 
   throw new Error(lastError);
+}
+
+function dailyMealCommentNeedsExpansion(comment) {
+  const required = [
+    "【1日の総評】",
+    "【良い点】",
+    "【悪い点・惜しい点】",
+    "【1日で不足しそうなもの】",
+    "【摂りすぎ・重複の確認】",
+    "【明日補うなら】",
+    "【優先順位】",
+  ];
+  return String(comment || "").length < 1000
+    || required.some((heading) => !String(comment || "").includes(heading));
+}
+
+async function expandDailyMealComment(env, model, originalPrompt, draft) {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+  const rewritePrompt = [
+    originalPrompt,
+    "",
+    "以下は最初の回答ですが、短い、または必須見出しが不足しています。",
+    "内容を捨てずに具体例と理由を補い、指定した7見出しをすべて含む1200〜2000字の完成版へ書き直してください。",
+    "完成版だけを出力してください。",
+    "",
+    "最初の回答:",
+    draft,
+  ].join("\n");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: rewritePrompt }] }],
+      generationConfig: { temperature: 0.25, maxOutputTokens: 4500 },
+    }),
+  });
+  if (!response.ok) return draft;
+  const payload = await response.json();
+  return payload.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n").trim() || draft;
 }
 
 async function callGemini(env, mode, question, context) {
