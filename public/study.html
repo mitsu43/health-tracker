@@ -77,6 +77,17 @@ input[type=date]{min-height:42px}
 .material-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
 .tab.active{background:var(--green);border-color:var(--green);color:#fff}
+.catalog-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.catalog-list{margin-top:8px}
+.catalog-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--line);font-size:12px;line-height:1.55}
+.catalog-item:first-child{border-top:none}
+.catalog-item b{display:block;font-size:13px;color:var(--text);overflow-wrap:anywhere}
+.catalog-item span{display:block;color:var(--muted);overflow-wrap:anywhere;margin-top:2px}
+.catalog-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.catalog-actions .btn{padding:6px 9px;font-size:11px}
+.catalog-groups{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.catalog-chip{border:1px solid var(--line);border-radius:999px;background:#fff;padding:6px 9px;font-size:11px;cursor:pointer;color:var(--text)}
+.catalog-chip.active{background:var(--green);border-color:var(--green);color:#fff}
 details{margin-top:12px}
 summary{cursor:pointer;font-weight:700;font-size:13px}
 @media(max-width:900px){.wrap{padding:14px}.grid,.phase-grid{grid-template-columns:1fr}.top{padding:12px 14px}.viewer{aspect-ratio:4/3}}
@@ -101,6 +112,22 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
   <div class="grid">
     <section>
       <div class="card" id="daily-card"></div>
+      <div class="card">
+        <div class="date-title">
+          <div>
+            <h2>教材フォルダ連携</h2>
+            <div class="sub" id="catalog-summary">整理済みGoogle Driveフォルダの教材一覧を読み込みます。</div>
+          </div>
+          <span class="badge blue" id="catalog-count">0件</span>
+        </div>
+        <div class="catalog-toolbar">
+          <button class="btn primary" type="button" onclick="renderRecommendedMaterials()">今日の教材</button>
+          <button class="btn" type="button" onclick="copyCatalogRoot()">教材ルートをコピー</button>
+          <input id="catalog-search" placeholder="教材名・分類で検索" oninput="searchCatalog()" style="min-width:220px;flex:1">
+        </div>
+        <div class="catalog-groups" id="catalog-groups"></div>
+        <div id="catalog-list" class="catalog-list"><div class="sub">教材カタログを読み込み中...</div></div>
+      </div>
       <div class="card">
         <div class="date-title">
           <div>
@@ -224,6 +251,8 @@ let GOALS={};
 let selectedDate='';
 let localMaterials=[];
 let currentPdfUrl='';
+let materialCatalog={items:[],groups:[],root:''};
+let selectedCatalogCategory='';
 
 const PHASES=[
   {id:'prep',from:'2026-06-24',to:'2026-06-25',label:'準備期間',goal:'教材整理、PDF化方針、机上セットを決める'},
@@ -285,6 +314,7 @@ function render(){
   renderDailyCard();
   renderProgress();
   renderWeaknessHistory();
+  renderRecommendedMaterials();
 }
 function renderDailyCard(){
   const day=getDay(selectedDate);
@@ -383,6 +413,106 @@ function renderWeaknessHistory(){
     <b>${escapeHTML(record.year||'年度未入力')} ${escapeHTML(record.number||'')} ${escapeHTML(record.topic||'論点未入力')}</b><br>
     ${escapeHTML(resultLabel[record.result]||record.result)}${record.note?` / ${escapeHTML(record.note)}`:''}
   </div>`).join('')}`;
+}
+
+async function loadMaterialCatalog(){
+  try{
+    const response=await fetch('study-materials-catalog.json',{cache:'no-store'});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    materialCatalog=await response.json();
+    materialCatalog.items=Array.isArray(materialCatalog.items)?materialCatalog.items:[];
+    materialCatalog.groups=Array.isArray(materialCatalog.groups)?materialCatalog.groups:[];
+    document.getElementById('catalog-count').textContent=`${materialCatalog.items.length}件`;
+    document.getElementById('catalog-summary').textContent=`${materialCatalog.root||'教材フォルダ'} の内容を反映しています。`;
+    renderCatalogGroups();
+    renderRecommendedMaterials();
+  }catch(error){
+    document.getElementById('catalog-list').innerHTML=`<div class="warning">教材カタログを読み込めませんでした: ${escapeHTML(error.message)}<br>GitHubへ反映する場合は public/study-materials-catalog.json も一緒に置いてください。</div>`;
+  }
+}
+function preferredCategoriesForToday(){
+  const phase=currentPhase();
+  const tasks=taskListFor(selectedDate).map(task=>task.id);
+  const cats=[];
+  if(phase.id==='prep')cats.push('測量士補 / 計画','測量士補 / 基本テキスト','調査士 / 不登法・調査士法PDF');
+  if(['base','survey1','survey2','switch'].includes(phase.id))cats.push('測量士補 / 過去問','測量士補 / 基本テキスト','測量士補 / 直前対策','測量士補 / 試験要点TXT');
+  if(['choice1','investigator','final'].includes(phase.id))cats.push('調査士 / 択一過去問PDF','調査士 / 不登法・調査士法PDF','調査士 / 民法PDF','調査士 / 記述PDF');
+  if(tasks.includes('study_written_20')||tasks.includes('study_weekend_written'))cats.push('調査士 / 作図・複素数・書式PDF','調査士 / 記述式土地動画','調査士 / 記述式建物動画');
+  if(tasks.includes('study_survey_20'))cats.push('測量士補 / 講義動画');
+  if(tasks.includes('study_investigator_choice_25'))cats.push('調査士 / 不登法・調査士法動画','調査士 / 民法動画');
+  if(tasks.includes('study_weekend_questions'))cats.push('調査士 / 過去問動画','測量士補 / 過去問');
+  return [...new Set(cats)];
+}
+function renderCatalogGroups(){
+  const el=document.getElementById('catalog-groups');
+  if(!el)return;
+  const groups=materialCatalog.groups||[];
+  el.innerHTML=[`<button class="catalog-chip${!selectedCatalogCategory?' active':''}" onclick="selectCatalogCategory('')">おすすめ</button>`]
+    .concat(groups.map(group=>`<button class="catalog-chip${selectedCatalogCategory===group.category?' active':''}" onclick="selectCatalogCategory('${encodeURIComponent(group.category)}')">${escapeHTML(group.category)} ${group.count}</button>`))
+    .join('');
+}
+function selectCatalogCategory(encodedCategory){
+  selectedCatalogCategory=decodeURIComponent(encodedCategory||'');
+  document.getElementById('catalog-search').value='';
+  renderCatalogGroups();
+  if(selectedCatalogCategory)renderCatalogItems(materialCatalog.items.filter(item=>item.category===selectedCatalogCategory),selectedCatalogCategory);
+  else renderRecommendedMaterials();
+}
+function renderRecommendedMaterials(){
+  if(!materialCatalog.items.length)return;
+  if(selectedCatalogCategory)return;
+  const cats=preferredCategoriesForToday();
+  const ranked=materialCatalog.items
+    .filter(item=>cats.includes(item.category))
+    .sort((a,b)=>{
+      const catDiff=cats.indexOf(a.category)-cats.indexOf(b.category);
+      if(catDiff!==0)return catDiff;
+      const extRank={'.pdf':0,'.txt':1,'.md':1,'.mp4':2};
+      return (extRank[a.extension]??9)-(extRank[b.extension]??9)||String(a.name).localeCompare(String(b.name),'ja');
+    })
+    .slice(0,18);
+  renderCatalogItems(ranked,'今日のノルマに関係する教材');
+}
+function searchCatalog(){
+  const q=(document.getElementById('catalog-search')?.value||'').trim().toLowerCase();
+  selectedCatalogCategory='';
+  renderCatalogGroups();
+  if(!q){renderRecommendedMaterials();return}
+  const terms=q.split(/\s+/).filter(Boolean);
+  const rows=materialCatalog.items.filter(item=>{
+    const haystack=`${item.name} ${item.category} ${item.relativePath}`.toLowerCase();
+    return terms.every(term=>haystack.includes(term));
+  }).slice(0,80);
+  renderCatalogItems(rows,`検索: ${q}`);
+}
+function renderCatalogItems(items,title){
+  const el=document.getElementById('catalog-list');
+  if(!el)return;
+  if(!items.length){el.innerHTML=`<div class="sub">${escapeHTML(title)} に該当する教材はありません。</div>`;return}
+  el.innerHTML=`<div class="sub">${escapeHTML(title)}: ${items.length}件表示</div>`+items.map(item=>`
+    <div class="catalog-item">
+      <div>
+        <b>${escapeHTML(item.name)}</b>
+        <span>${escapeHTML(item.category)} / ${escapeHTML(item.relativePath)}</span>
+        <span>${escapeHTML(item.mb)}MB / 更新 ${escapeHTML(item.modified||'')}</span>
+      </div>
+      <div class="catalog-actions">
+        <a class="btn" href="${escapeHTML(item.fileUrl)}" target="_blank" rel="noopener">開く</a>
+        <button class="btn" type="button" onclick="copyText('${encodeURIComponent(item.path)}','教材パスをコピーしました')">パス</button>
+      </div>
+    </div>`).join('');
+}
+function copyCatalogRoot(){
+  copyText(materialCatalog.root||'G:\\マイドライブ\\［土地家屋調査士]','教材ルートをコピーしました');
+}
+async function copyText(encodedOrText,message){
+  const text=String(encodedOrText).includes('%')?decodeURIComponent(encodedOrText):encodedOrText;
+  try{
+    await navigator.clipboard.writeText(text);
+    setStatus(message||'コピーしました');
+  }catch{
+    setStatus(text,true);
+  }
 }
 
 function searchTermsFromQuestion(question){
@@ -625,6 +755,7 @@ async function init(){
   uploadBox.addEventListener('dragover',event=>event.preventDefault());
   uploadBox.addEventListener('drop',event=>{event.preventDefault();handleMaterialFiles(event.dataTransfer.files)});
   await loadLocalMaterials();
+  await loadMaterialCatalog();
   await loadCoachLogs();
 }
 init();
