@@ -3,84 +3,92 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>資格学習スケジュール</title>
+<title>資格学習ルーティーン</title>
 <style>
-:root{--bg:#f4f6f2;--panel:#fff;--text:#243028;--muted:#66736a;--line:#d9e0da;--green:#3f6b45;--green2:#e8f1e9;--red:#a64235;--shadow:0 5px 18px rgba(29,48,34,.07)}
+:root{
+  --bg:#f4f6f2;--panel:#fff;--text:#243028;--muted:#66736a;--line:#d9e0da;
+  --green:#3f6b45;--green2:#e8f1e9;--yellow:#f6efe0;--red:#a64235;
+  --blue:#375f7c;--shadow:0 5px 18px rgba(29,48,34,.07)
+}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans JP","Yu Gothic UI",sans-serif}
-button,input,textarea{font:inherit}
+button,input,textarea,select{font:inherit}
 .top{background:var(--panel);border-bottom:1px solid var(--line);padding:13px 22px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
 .back{color:var(--green);text-decoration:none;font-weight:700}
 .top h1{font-size:18px;margin:0}
-.wrap{max-width:1180px;margin:0 auto;padding:20px}
+.wrap{max-width:1220px;margin:0 auto;padding:20px}
 .toolbar{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:16px}
 .field{display:flex;flex-direction:column;gap:5px}
 label{font-size:12px;font-weight:700;color:var(--muted)}
-input,textarea{border:1px solid var(--line);border-radius:7px;background:#fff;padding:9px 10px;color:var(--text)}
+input,textarea,select{border:1px solid var(--line);border-radius:7px;background:#fff;padding:9px 10px;color:var(--text)}
+textarea{width:100%;line-height:1.7;resize:vertical}
 input[type=date]{min-height:42px}
 .btn{border:1px solid var(--line);border-radius:7px;background:#fff;padding:9px 13px;cursor:pointer;font-weight:700}
 .btn.primary{background:var(--green);border-color:var(--green);color:#fff}
-.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,1.25fr);gap:16px}
+.btn.danger{color:var(--red);border-color:rgba(166,66,53,.25)}
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr);gap:16px;align-items:start}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:17px;margin-bottom:16px}
 .card h2{font-size:15px;margin:0 0 10px}
 .sub{font-size:12px;color:var(--muted);line-height:1.65}
 .date-title{display:flex;justify-content:space-between;gap:12px;align-items:start}
-.badge{font-size:11px;padding:4px 9px;border-radius:999px;background:var(--green2);color:var(--green);font-weight:700}
-.task{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:11px 0;border-top:1px solid var(--line);cursor:pointer}
+.badge{font-size:11px;padding:4px 9px;border-radius:999px;background:var(--green2);color:var(--green);font-weight:700;white-space:nowrap}
+.badge.warn{background:var(--yellow);color:#8b641e}
+.badge.blue{background:#e4edf3;color:var(--blue)}
+.progress{height:8px;background:#e7ebe7;border-radius:5px;overflow:hidden;margin:10px 0}
+.bar{height:100%;background:var(--green);transition:width .2s}
+.routine-section{margin-top:14px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding-top:13px;margin-top:13px}
+.section-head:first-child{border-top:none;padding-top:0;margin-top:0}
+.section-title{font-size:13px;font-weight:800;color:var(--green)}
+.task{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
 .task:first-of-type{border-top:none}
 .task input{margin-top:3px}
 .task b{display:block;font-size:14px}
 .task span{display:block;font-size:12px;color:var(--muted);margin-top:3px}
-.time{font-size:12px;font-weight:700;color:var(--green)}
-.progress{height:7px;background:#e7ebe7;border-radius:5px;overflow:hidden;margin:10px 0}
-.bar{height:100%;background:var(--green);transition:width .2s}
-.viewer{aspect-ratio:16/10;border:1px solid var(--line);border-radius:7px;background:#eef1ee;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.viewer iframe{width:100%;height:100%;border:0}
-.empty{text-align:center;padding:25px;color:var(--muted);font-size:13px;line-height:1.7}
-.material-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
-.tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
-.tab.active{background:var(--green);border-color:var(--green);color:#fff}
-details{margin-top:16px}
-summary{cursor:pointer;font-weight:700;font-size:13px}
-.settings{margin-top:12px}
-.settings textarea{width:100%;min-height:145px;font-family:Consolas,monospace;font-size:12px;line-height:1.6}
-.hint{font-size:11px;color:var(--muted);line-height:1.6;margin-top:6px}
+.task.done b{text-decoration:line-through;color:var(--muted)}
+.time{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
+.phase-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.phase{border:1px solid var(--line);border-radius:7px;padding:10px;background:#fbfcfb}
+.phase.active{border-color:var(--green);background:var(--green2)}
+.phase b{display:block;font-size:12px;margin-bottom:4px}
+.phase span{font-size:11px;color:var(--muted);line-height:1.55}
+.week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:10px}
+.day-cell{border:1px solid var(--line);border-radius:7px;background:#fff;padding:8px;text-align:center;font-size:11px;color:var(--muted)}
+.day-cell strong{display:block;color:var(--text);font-size:13px}
+.day-cell.done{background:var(--green2);border-color:#b9d2bd}
+.form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.form-row .full{grid-column:1/-1}
+.choice{display:flex;gap:8px;flex-wrap:wrap}
+.choice label{border:1px solid var(--line);border-radius:7px;padding:8px 11px;background:#fff;cursor:pointer;font-size:12px;color:var(--text)}
+.choice input{margin-right:5px}
+.history-item,.coach-log,.material-item{padding:10px 0;border-top:1px solid var(--line);font-size:12px;line-height:1.65}
+.history-item:first-child,.coach-log:first-child,.material-item:first-child{border-top:none}
 .status{font-size:12px;color:var(--green);min-height:18px}
 .warning{color:var(--red)}
-.lecture-tools{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
-.lecture-tools textarea{width:100%;min-height:150px;line-height:1.7}
-.lecture-actions{display:flex;gap:8px;flex-wrap:wrap;margin:9px 0}
-.exam-summary{white-space:pre-wrap;background:#f5f8f5;border:1px solid var(--line);border-radius:7px;padding:18px;font-size:15px;line-height:1.9;min-height:260px}
-.study-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-.pdf-card{margin-top:16px}
-.setup-details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.coach-answer,.advice-box,.search-result{white-space:pre-wrap;background:#f5f8f5;border:1px solid var(--line);border-radius:7px;padding:12px;font-size:13px;line-height:1.8}
+.advice-box h3{font-size:13px;margin:0 0 8px;color:var(--green)}
 .upload-box{border:2px dashed #b9c7bb;border-radius:8px;padding:18px;text-align:center;background:#f8faf8;cursor:pointer;margin-top:12px}
 .upload-box:hover{border-color:var(--green);background:var(--green2)}
-.upload-list{margin-top:12px}
-.upload-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
-.upload-item-name{flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere}
-.upload-item button{border:0;background:none;color:var(--red);cursor:pointer}
-.question-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.question-grid .full{grid-column:1/-1}
-.result-choice{display:flex;gap:8px;flex-wrap:wrap}
-.result-choice label{border:1px solid var(--line);border-radius:7px;padding:8px 11px;background:#fff;cursor:pointer;font-size:12px}
-.result-choice input{margin-right:5px}
-.explanation-source{border-top:1px solid var(--line);padding:13px 0}
-.explanation-source:first-child{border-top:none}
-.explanation-source h3{font-size:13px;margin:0 0 6px;color:var(--green)}
-.explanation-source div{white-space:pre-wrap;font-size:14px;line-height:1.85}
-.weakness-list{margin-top:10px}
-.weakness-item{padding:9px 0;border-top:1px solid var(--line);font-size:12px;line-height:1.6}
-.weakness-item b{color:var(--text)}
-@media(max-width:850px){.wrap{padding:14px}.grid{grid-template-columns:1fr}.top{padding:12px 14px}.viewer{aspect-ratio:4/3}}
-@media(max-width:600px){.question-grid{grid-template-columns:1fr}.question-grid .full{grid-column:auto}}
+.material-item{display:flex;align-items:center;gap:10px}
+.material-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.viewer{aspect-ratio:16/10;border:1px solid var(--line);border-radius:7px;background:#eef1ee;overflow:hidden;display:flex;align-items:center;justify-content:center;margin-top:10px}
+.viewer iframe{width:100%;height:100%;border:0}
+.empty{text-align:center;padding:25px;color:var(--muted);font-size:13px;line-height:1.7}
+.material-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
+.tab.active{background:var(--green);border-color:var(--green);color:#fff}
+details{margin-top:12px}
+summary{cursor:pointer;font-weight:700;font-size:13px}
+@media(max-width:900px){.wrap{padding:14px}.grid,.phase-grid{grid-template-columns:1fr}.top{padding:12px 14px}.viewer{aspect-ratio:4/3}}
+@media(max-width:620px){.form-row,.week-grid{grid-template-columns:1fr}.toolbar{align-items:stretch}.field{width:100%}}
 </style>
 </head>
 <body>
 <header class="top">
   <a class="back" href="index.html">← 健康管理へ</a>
-  <h1>過去問から逆算する資格学習</h1>
+  <h1>資格学習ルーティーン</h1>
 </header>
+
 <main class="wrap">
   <div class="toolbar">
     <div class="field"><label for="study-date">対象日</label><input type="date" id="study-date"></div>
@@ -89,83 +97,169 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
     <button class="btn" type="button" onclick="moveDate(1)">翌日</button>
     <span id="sync-status" class="status"></span>
   </div>
+
   <div class="grid">
     <section>
-      <div class="card" id="schedule-card"></div>
+      <div class="card" id="daily-card"></div>
       <div class="card">
-        <h2>過去問の結果を入力</h2>
-        <div class="question-grid">
-          <div class="field"><label for="question-year">年度</label><input id="question-year" placeholder="例：令和6年"></div>
-          <div class="field"><label for="question-number">問題番号</label><input id="question-number" placeholder="例：問10"></div>
-          <div class="field full"><label for="question-topic">分野・キーワード</label><input id="question-topic" placeholder="例：水準測量 標尺補正"></div>
+        <div class="date-title">
+          <div>
+            <h2>進捗の見取り図</h2>
+            <div class="sub">2026年6月26日開始。測量士補を2027年5月、土地家屋調査士を2027年10月想定で逆算しています。</div>
+          </div>
+          <span class="badge blue" id="phase-badge"></span>
+        </div>
+        <div class="phase-grid" id="phase-grid"></div>
+        <div class="week-grid" id="week-grid"></div>
+      </div>
+
+      <div class="card">
+        <h2>今日の過去問・弱点記録</h2>
+        <div class="form-row">
+          <div class="field"><label for="question-year">年度</label><input id="question-year" placeholder="例: 令和5年 / H30"></div>
+          <div class="field"><label for="question-number">問題番号</label><input id="question-number" placeholder="例: 問10 / 土地記述"></div>
+          <div class="field full"><label for="question-topic">論点・キーワード</label><input id="question-topic" placeholder="例: 地積測量図、表題登記、時効、三角点"></div>
           <div class="field full">
             <label>結果</label>
-            <div class="result-choice">
+            <div class="choice">
               <label><input type="radio" name="question-result" value="wrong" checked>不正解</label>
-              <label><input type="radio" name="question-result" value="unsure">正解だが自信なし</label>
+              <label><input type="radio" name="question-result" value="unsure">正解だが不安</label>
               <label><input type="radio" name="question-result" value="correct">理解して正解</label>
             </div>
           </div>
           <div class="field full">
             <label for="study-note">何が分からなかったか</label>
-            <textarea id="study-note" rows="5" placeholder="例：往復観測の較差の許容範囲と、どの補正を適用するかが分からない"></textarea>
+            <textarea id="study-note" rows="5" placeholder="例: 座標から面積を出す流れは分かるが、符号の扱いで迷った。"></textarea>
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          <button class="btn primary" type="button" onclick="findExplanation()">関連解説を表示</button>
-          <button class="btn" type="button" onclick="saveQuestionResult()">結果を保存</button>
+          <button class="btn primary" type="button" onclick="saveQuestionResult()">記録を保存</button>
+          <button class="btn" type="button" onclick="findExplanation()">教材から関連説明を探す</button>
         </div>
-        <div id="weakness-history" class="weakness-list"></div>
+        <div id="weakness-history"></div>
       </div>
     </section>
+
     <section>
       <div class="card">
-        <div class="date-title">
-          <div><h2>分からなかった箇所の解説</h2><div class="sub" id="viewer-caption">過去問のキーワードから要点教材を検索します。</div></div>
-          <span class="badge" id="material-count">0件</span>
+        <h2>伴走相談</h2>
+        <div class="sub">学習の詰まり、今日の優先順位、教材の使い方を相談できます。回答は既存の伴走相談履歴にも保存されます。</div>
+        <div class="field" style="margin-top:10px">
+          <label for="coach-mode">相談モード</label>
+          <select id="coach-mode">
+            <option value="study_today">今日やることを絞る</option>
+            <option value="study_weakness">弱点の潰し方</option>
+            <option value="study_materials">教材管理・PDF化</option>
+            <option value="study_motivation">続け方・挫折対策</option>
+          </select>
         </div>
-        <div class="lecture-tools" id="lecture-tools">
-          <h2 id="lecture-tools-title">先に過去問の結果を入力してください</h2>
-          <div class="study-actions">
-            <button class="btn primary" type="button" onclick="speakLecture()">解説を読み上げ</button>
-            <button class="btn" type="button" onclick="stopSpeaking()">停止</button>
-          </div>
-          <div id="lecture-status" class="status"></div>
-          <div id="exam-summary" class="exam-summary">不正解または自信のない問題から、必要な解説だけを確認します。</div>
+        <div class="field" style="margin-top:10px">
+          <label for="coach-question">相談内容</label>
+          <textarea id="coach-question" rows="5" placeholder="例: 平日75分が取れない日が多いです。測量士補と調査士のどちらを優先すべきですか。"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn primary" type="button" onclick="askCoach()">相談する</button>
+          <button class="btn" type="button" onclick="loadCoachLogs()">履歴を更新</button>
+        </div>
+        <div id="coach-status" class="status" style="margin-top:8px"></div>
+        <div id="coach-answer" class="coach-answer" style="display:none;margin-top:10px"></div>
+        <details>
+          <summary>相談履歴</summary>
+          <div id="coach-logs" style="margin-top:8px"></div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>教材管理のおすすめ</h2>
+        <div class="advice-box">
+<h3>PDF化するなら、この単位で分けるのが一番使いやすいです</h3>
+1. 測量士補_総合講義_テキスト.pdf
+2. 測量士補_過去問_上.pdf / 測量士補_過去問_下.pdf
+3. 測量士補_計算問題.pdf / 測量士補_文章問題.pdf
+4. 調査士_民法_テキスト.pdf
+5. 調査士_不登法調査士法_テキスト.pdf
+6. 調査士_択一過去問_H17-H25.pdf / H26-R04.pdf / R05.pdf
+7. 調査士_記述_土地.pdf / 調査士_記述_建物.pdf
+8. 調査士_記述_模範解答.pdf
+9. 定規の使い方.pdf / 複素数計算.pdf / 書式ひな形.pdf
+10. 実践答練_第1回.pdf から 実践答練_第3回.pdf
+
+ファイル名の先頭に「測量士補_」「調査士_」「答練_」を付けると、あとで検索しやすくなります。
+講義動画から作ったTXTは「001_試験要点.txt」のように3桁番号でそろえるのがおすすめです。
         </div>
       </div>
-      <div class="card pdf-card">
+
+      <div class="card">
         <div class="date-title">
-          <div><h2>図・計算・作図のPDF</h2><div class="sub" id="pdf-caption">解説だけで分からない場合にPDFを確認します。</div></div>
-          <span class="badge" id="pdf-count">0件</span>
+          <div>
+            <h2>教材アップロード</h2>
+            <div class="sub">PDFは画面で確認、TXT/Markdownは過去問キーワード検索に使います。保存先はこのブラウザ内です。</div>
+          </div>
+          <span class="badge" id="material-count">0件</span>
         </div>
+        <label class="upload-box" for="material-files">
+          PDF・TXT・Markdownを追加
+          <input type="file" id="material-files" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" multiple hidden>
+        </label>
+        <div id="upload-status" class="status" style="margin-top:8px"></div>
+        <div id="upload-list"></div>
         <div class="material-tabs" id="pdf-tabs"></div>
-        <div class="viewer" id="pdf-viewer"><div class="empty">PDFリンクが登録されると、ここに表示します。</div></div>
-        <div class="setup-details">
-          <h2>過去問・解説教材をアップロード</h2>
-          <div class="sub">過去問PDF、図解PDF、講義要点TXTをまとめて追加できます。</div>
-          <label class="upload-box" for="material-files">
-            PDF・TXT・Markdownをここへ追加
-            <input type="file" id="material-files" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" multiple hidden>
-          </label>
-          <div class="hint">例：`001_試験要点.txt`、`水準測量_図解.pdf`、`2024過去問上巻.pdf`。要点TXTは内容を横断検索します。</div>
-          <div id="upload-status" class="status" style="margin-top:8px"></div>
-          <div id="upload-list" class="upload-list"></div>
-        </div>
+        <div class="viewer" id="pdf-viewer"><div class="empty">PDFを追加するとここに表示します。</div></div>
+      </div>
+
+      <div class="card">
+        <h2>教材検索結果</h2>
+        <div id="search-result" class="search-result">過去問の論点・分からなかった点を入力して「教材から関連説明を探す」を押してください。</div>
       </div>
     </section>
   </div>
 </main>
+
 <script>
-const START_DATE='2026-06-20';
-const TOTAL_LECTURES=169;
+const PLAN_START='2026-06-26';
+const SURVEYOR_TARGET='2027-05-16';
+const INVESTIGATOR_TARGET='2027-10-17';
 let DB={};
 let GOALS={};
 let selectedDate='';
-let currentLectureNumber=null;
-let currentLectureSummary='';
 let localMaterials=[];
 let currentPdfUrl='';
+
+const PHASES=[
+  {id:'prep',from:'2026-06-24',to:'2026-06-25',label:'準備期間',goal:'教材整理、PDF化方針、机上セットを決める'},
+  {id:'base',from:'2026-06-26',to:'2026-07-31',label:'助走・土台作り',goal:'測量士補の全体像、民法入口、定規・複素数の習慣化'},
+  {id:'survey1',from:'2026-08-01',to:'2026-09-30',label:'測量士補1周目',goal:'測量士補過去問1周、不登法・調査士法の全体像'},
+  {id:'choice1',from:'2026-10-01',to:'2026-12-31',label:'調査士過去問開始',goal:'択一1周目、記述式の入口、書式ひな形'},
+  {id:'survey2',from:'2027-01-01',to:'2027-04-30',label:'測量士補直前期',goal:'測量士補を合格圏へ。調査士は維持'},
+  {id:'switch',from:'2027-05-01',to:'2027-05-31',label:'測量士補本番・切替',goal:'本番後に調査士へ完全移行'},
+  {id:'investigator',from:'2027-06-01',to:'2027-08-31',label:'調査士実戦期',goal:'記述式と答練、時間内答案'},
+  {id:'final',from:'2027-09-01',to:'2027-10-17',label:'最終調整',goal:'弱点だけ潰し、本番手順を固定'}
+];
+
+const ROUTINES={
+  prep:[
+    {id:'study_prep_materials',time:'20分',title:'教材を3分類する',detail:'測量士補、調査士択一、記述・作図に分ける'},
+    {id:'study_prep_pdf',time:'20分',title:'PDF化する順番を決める',detail:'まず測量士補過去問と調査士不登法から'},
+    {id:'study_prep_place',time:'10分',title:'毎日の置き場所を作る',detail:'今日使う1冊、電卓、定規、メモを固定'}
+  ],
+  weekday:[
+    {id:'study_survey_20',time:'20分',title:'測量士補',detail:'講義要点または過去問5問。計算日は手を動かす'},
+    {id:'study_investigator_choice_25',time:'25分',title:'調査士 択一・基礎',detail:'民法または不登法・調査士法。過去問から逆算'},
+    {id:'study_written_20',time:'20分',title:'記述・書式・複素数',detail:'複素数、定規、書式ひな形のどれかを必ず触る'},
+    {id:'study_error_5',time:'5分',title:'間違いメモ',detail:'分からなかった論点を1つだけ残す'}
+  ],
+  weekend:[
+    {id:'study_weekend_questions',time:'60分',title:'過去問演習',detail:'測量士補または調査士択一をまとまって解く'},
+    {id:'study_weekend_written',time:'60分',title:'記述式・作図',detail:'土地または建物。解けなくても答案構成を書く'},
+    {id:'study_weekend_review',time:'45分',title:'解説・テキスト確認',detail:'間違えた論点だけ教材に戻る'},
+    {id:'study_weekend_plan',time:'15分',title:'翌週準備',detail:'翌週に解く教材と問題を決める'}
+  ],
+  minimum:[
+    {id:'study_min_questions',time:'15分',title:'最低ノルマ: 問題5問',detail:'ゼロの日を作らないための保険'},
+    {id:'study_min_review',time:'10分',title:'最低ノルマ: 解説1つ',detail:'間違えた1問の理由だけ確認'},
+    {id:'study_min_skill',time:'5分',title:'最低ノルマ: 手を動かす',detail:'複素数、書式、定規のどれか'}
+  ]
+};
 
 function localDateString(date=new Date()){
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -174,148 +268,78 @@ function parseDate(value){const [y,m,d]=value.split('-').map(Number);return new 
 function formatJP(value){const d=parseDate(value);return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）`}
 function escapeHTML(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function getDay(value){if(!DB[value])DB[value]={c:{},v:{}};return DB[value]}
+function isBetween(value,from,to){return value>=from&&value<=to}
+function currentPhase(value=selectedDate){return PHASES.find(p=>isBetween(value,p.from,p.to))||PHASES[PHASES.length-1]}
+function daysUntil(target){return Math.ceil((parseDate(target)-parseDate(selectedDate))/(24*60*60*1000))}
+function taskListFor(value){
+  const phase=currentPhase(value);
+  if(phase.id==='prep')return ROUTINES.prep;
+  const dow=parseDate(value).getDay();
+  return dow===0||dow===6?ROUTINES.weekend:ROUTINES.weekday;
+}
+function taskMinutes(tasks){
+  return tasks.reduce((sum,item)=>sum+(Number(String(item.time).match(/\d+/)?.[0]||0)),0);
+}
 
-function studyIndex(value){
-  const start=parseDate(START_DATE);
-  const target=parseDate(value);
-  if(target<start)return -1;
-  let count=0;
-  const cursor=new Date(start);
-  while(cursor<target){
-    if(cursor.getDay()!==0)count++;
-    cursor.setDate(cursor.getDate()+1);
-  }
-  return count;
-}
-function assignmentFor(value){
-  const date=parseDate(value);
-  const index=studyIndex(value);
-  if(index<0)return {type:'before',videos:[]};
-  if(date.getDay()===0)return {type:'review',videos:[]};
-  const first=index*2+1;
-  if(first>TOTAL_LECTURES)return {type:'questions',videos:[]};
-  return {type:'lecture',videos:[first,Math.min(first+1,TOTAL_LECTURES)].filter((n,i,a)=>a.indexOf(n)===i)};
-}
-function taskDefinitions(assignment){
-  return [
-    ['career_survey_questions','30分','過去問を先に解く','10〜14問を時間を測って解く'],
-    ['career_error_log','10分','不正解・自信なしを記録','年度・問題番号・分からない点を入力'],
-    ['career_survey_theory','15分','必要な解説だけ読む','関連要点を検索し、誤りの原因を確認'],
-    ['career_survey_text','5分','図・公式だけPDF確認','文章で理解できない箇所だけを見る']
-  ];
-}
-function parseVideoLinks(){
-  const result={};
-  let automaticNumber=1;
-  String(GOALS.studyVideoLinks||'').split(/\r?\n/).forEach(line=>{
-    const value=line.trim();
-    if(!value)return;
-    const match=value.match(/^(\d{1,3})\s+(.+)$/);
-    if(match){
-      result[Number(match[1])]=match[2].trim();
-      automaticNumber=Math.max(automaticNumber,Number(match[1])+1);
-    }else if(/^https?:\/\//i.test(value)){
-      while(result[automaticNumber])automaticNumber++;
-      result[automaticNumber++]=value;
-    }
-  });
-  return result;
-}
-function parsePdfLinks(){
-  return localMaterials
-    .filter(item=>item.kind==='pdf')
-    .map(item=>({name:item.name,id:item.id,type:'pdf'}));
-}
-function drivePreview(url){
-  const youtube=String(url).match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{6,})/);
-  if(youtube)return `https://www.youtube.com/embed/${youtube[1]}`;
-  const match=String(url).match(/\/d\/([a-zA-Z0-9_-]+)/)||String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  return match?`https://drive.google.com/file/d/${match[1]}/preview`:url;
-}
 function render(){
-  const day=getDay(selectedDate);
-  const assignment=assignmentFor(selectedDate);
-  const tasks=taskDefinitions(assignment);
-  const done=tasks.filter(([id])=>day.c[id]).length;
-  const pct=Math.round(done/tasks.length*100);
-  const typeLabel='過去問起点';
-  document.getElementById('schedule-card').innerHTML=`
-    <div class="date-title"><div><h2>${formatJP(selectedDate)}</h2><div class="sub">過去問 → 誤答記録 → 必要な解説 → PDF確認の順で進めます。</div></div><span class="badge">${typeLabel}</span></div>
-    <div class="progress"><div class="bar" style="width:${pct}%"></div></div>
-    <div class="sub" style="text-align:right">${done}/${tasks.length} 完了</div>
-    ${tasks.map(([id,time,label,target])=>`<label class="task"><input type="checkbox" ${day.c[id]?'checked':''} onchange="toggleTask('${id}',this.checked)"><span><b>${escapeHTML(label)}</b><span>${escapeHTML(target)}</span></span><span class="time">${time}</span></label>`).join('')}`;
-  const latest=(day.v.questionResults||[]).at(-1)||{};
-  document.getElementById('question-year').value=latest.year||'';
-  document.getElementById('question-number').value=latest.number||'';
-  document.getElementById('question-topic').value=latest.topic||'';
-  document.getElementById('study-note').value=latest.note||'';
-  const resultRadio=document.querySelector(`input[name="question-result"][value="${latest.result||'wrong'}"]`);
-  if(resultRadio)resultRadio.checked=true;
+  renderDailyCard();
+  renderProgress();
   renderWeaknessHistory();
 }
-function renderMaterials(){
-  const pdfs=parsePdfLinks();
-  const pdfTabs=document.getElementById('pdf-tabs');
-  document.getElementById('pdf-count').textContent=`${pdfs.length}件`;
-  pdfTabs.innerHTML=pdfs.map((item,index)=>`<button class="tab${index===0?' active':''}" onclick="showPdf(${index})">${escapeHTML(item.name)}</button>`).join('');
-  window.currentPdfs=pdfs;
-  if(pdfs.length)showPdf(0);
-  else document.getElementById('pdf-viewer').innerHTML='<div class="empty">PDFが未登録です。図形・公式・作図資料の共有リンクだけを教材管理欄へ登録してください。</div>';
+function renderDailyCard(){
+  const day=getDay(selectedDate);
+  const phase=currentPhase();
+  const tasks=taskListFor(selectedDate);
+  const done=tasks.filter(t=>day.c[t.id]).length;
+  const pct=Math.round(done/tasks.length*100);
+  const minTasks=ROUTINES.minimum;
+  const minDone=minTasks.filter(t=>day.c[t.id]).length;
+  const totalMinutes=taskMinutes(tasks);
+  const card=document.getElementById('daily-card');
+  card.innerHTML=`
+    <div class="date-title">
+      <div>
+        <h2>${formatJP(selectedDate)} のノルマ表</h2>
+        <div class="sub">今日の標準ノルマは${totalMinutes}分。きつい日は下の最低ノルマ30分だけで継続扱いにします。</div>
+      </div>
+      <span class="badge">${escapeHTML(phase.label)}</span>
+    </div>
+    <div class="progress"><div class="bar" style="width:${pct}%"></div></div>
+    <div class="sub" style="display:flex;justify-content:space-between;gap:10px"><span>標準 ${done}/${tasks.length}</span><span>測量士補まで ${daysUntil(SURVEYOR_TARGET)}日 / 調査士まで ${daysUntil(INVESTIGATOR_TARGET)}日</span></div>
+    <div class="routine-section">
+      <div class="section-head"><div class="section-title">標準ノルマ</div><span class="badge blue">${totalMinutes}分</span></div>
+      ${tasks.map(task=>taskRow(task,day.c[task.id])).join('')}
+      <div class="section-head"><div class="section-title">忙しい日の最低ノルマ</div><span class="badge warn">${minDone}/${minTasks.length}</span></div>
+      ${minTasks.map(task=>taskRow(task,day.c[task.id])).join('')}
+    </div>`;
 }
-async function showPdf(index){
-  const item=window.currentPdfs[index];
-  document.querySelectorAll('#pdf-tabs .tab').forEach((tab,i)=>tab.classList.toggle('active',i===index));
-  document.getElementById('pdf-caption').textContent=item.name;
-  const record=await getMaterialRecord(item.id);
-  if(currentPdfUrl)URL.revokeObjectURL(currentPdfUrl);
-  currentPdfUrl=record?.blob?URL.createObjectURL(record.blob):'';
-  document.getElementById('pdf-viewer').innerHTML=currentPdfUrl
-    ? `<iframe src="${escapeHTML(currentPdfUrl)}" loading="lazy"></iframe>`
-    : '<div class="empty">PDFを読み込めませんでした。</div>';
+function taskRow(task,checked){
+  return `<label class="task ${checked?'done':''}">
+    <input type="checkbox" ${checked?'checked':''} onchange="toggleTask('${task.id}',this.checked)">
+    <span><b>${escapeHTML(task.title)}</b><span>${escapeHTML(task.detail)}</span></span>
+    <span class="time">${escapeHTML(task.time)}</span>
+  </label>`;
 }
-async function loadLectureNote(number,title){
-  currentLectureNumber=number;
-  currentLectureSummary='';
-  document.getElementById('lecture-tools-title').textContent=`講義 ${String(number).padStart(3,'0')} 試験で問われる点`;
-  document.getElementById('exam-summary').textContent='保存済みデータを読み込んでいます。';
-  setLectureStatus('');
-  try{
-    const response=await fetch(`/api/study/lecture/${number}`);
-    if(!response.ok)throw new Error(`HTTP ${response.status}`);
-    const data=await response.json();
-    if(currentLectureNumber!==number)return;
-    currentLectureSummary=await getLocalLectureText(number)||data.lecture?.exam_summary||'';
-    document.getElementById('exam-summary').textContent=currentLectureSummary||'この講義の試験要点はまだありません。`001_試験要点.txt`のようなファイルを下から追加してください。';
-  }catch{
-    if(currentLectureNumber!==number)return;
-    const cached=getCachedLecture(number);
-    currentLectureSummary=cached.examSummary||await getLocalLectureText(number)||'';
-    document.getElementById('exam-summary').textContent=currentLectureSummary||'この講義の試験要点はまだありません。`001_試験要点.txt`のようなファイルを下から追加してください。';
+function renderProgress(){
+  const phase=currentPhase();
+  document.getElementById('phase-badge').textContent=phase.label;
+  document.getElementById('phase-grid').innerHTML=PHASES.map(p=>`<div class="phase ${p.id===phase.id?'active':''}">
+    <b>${escapeHTML(p.label)}</b>
+    <span>${escapeHTML(p.from)} - ${escapeHTML(p.to)}<br>${escapeHTML(p.goal)}</span>
+  </div>`).join('');
+  const start=parseDate(selectedDate);
+  start.setDate(start.getDate()-start.getDay()+1);
+  const cells=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(start);
+    d.setDate(start.getDate()+i);
+    const key=localDateString(d);
+    const tasks=taskListFor(key);
+    const day=getDay(key);
+    const complete=tasks.length&&tasks.every(t=>day.c[t.id]);
+    cells.push(`<div class="day-cell ${complete?'done':''}"><strong>${d.getMonth()+1}/${d.getDate()}</strong>${'月火水木金土日'[i]}<br>${complete?'達成':'-'}</div>`);
   }
-}
-function lectureCacheKey(number){return `study_lecture_${number}`}
-function getCachedLecture(number){
-  try{return JSON.parse(localStorage.getItem(lectureCacheKey(number))||'{}')}catch{return {}}
-}
-function speakLecture(){
-  if(!('speechSynthesis' in window)){setLectureStatus('このブラウザは読み上げに対応していません。',true);return}
-  const text=currentLectureSummary;
-  if(!text){setLectureStatus('先に講義番号入りのテキスト教材を追加してください。',true);return}
-  speechSynthesis.cancel();
-  const utterance=new SpeechSynthesisUtterance(text);
-  utterance.lang='ja-JP';
-  utterance.rate=1;
-  speechSynthesis.speak(utterance);
-  setLectureStatus('試験ポイントを読み上げています。');
-}
-function stopSpeaking(){
-  if('speechSynthesis' in window)speechSynthesis.cancel();
-  setLectureStatus('読み上げを停止しました。');
-}
-function setLectureStatus(message,error=false){
-  const el=document.getElementById('lecture-status');
-  el.textContent=message;
-  el.classList.toggle('warning',error);
+  document.getElementById('week-grid').innerHTML=cells.join('');
 }
 async function saveDay(){
   localStorage.setItem('hrtrack_db_cache',JSON.stringify(DB));
@@ -328,9 +352,6 @@ async function toggleTask(id,checked){
   try{await saveDay();setStatus('保存しました')}catch{setStatus('端末内に保存しました',true)}
   render();
 }
-async function saveNote(){
-  await saveQuestionResult();
-}
 function getQuestionForm(){
   return {
     year:document.getElementById('question-year').value.trim(),
@@ -341,13 +362,35 @@ function getQuestionForm(){
     savedAt:new Date().toISOString()
   };
 }
+async function saveQuestionResult(){
+  const question=getQuestionForm();
+  if(!question.topic&&!question.note){setStatus('論点か分からなかった点を入力してください',true);return}
+  const day=getDay(selectedDate);
+  if(!Array.isArray(day.v.questionResults))day.v.questionResults=[];
+  day.v.questionResults.push(question);
+  day.v.questionResults=day.v.questionResults.slice(-80);
+  day.c.study_error_5=true;
+  day.c.study_investigator_choice_25=true;
+  try{await saveDay();setStatus('弱点記録を保存しました')}catch{setStatus('端末内に保存しました',true)}
+  render();
+}
+function renderWeaknessHistory(){
+  const records=(getDay(selectedDate).v.questionResults||[]).slice(-6).reverse();
+  const el=document.getElementById('weakness-history');
+  if(!records.length){el.innerHTML='<div class="sub" style="margin-top:12px">今日の弱点記録はまだありません。</div>';return}
+  const resultLabel={wrong:'不正解',unsure:'正解だが不安',correct:'理解して正解'};
+  el.innerHTML=`<div class="sub" style="margin-top:12px">今日の記録</div>${records.map(record=>`<div class="history-item">
+    <b>${escapeHTML(record.year||'年度未入力')} ${escapeHTML(record.number||'')} ${escapeHTML(record.topic||'論点未入力')}</b><br>
+    ${escapeHTML(resultLabel[record.result]||record.result)}${record.note?` / ${escapeHTML(record.note)}`:''}
+  </div>`).join('')}`;
+}
+
 function searchTermsFromQuestion(question){
-  const stopWords=new Set(['こと','もの','ため','どこ','どの','これ','それ','わからない','分からない','問題','正解','不正解']);
   const terms=[];
-  String(question.topic||'').split(/[\s、,／/・]+/).forEach(term=>terms.push(term));
-  const words=String(question.note||'').match(/[一-龥々ぁ-んァ-ヶA-Za-z0-9]{2,}/g)||[];
+  String(question.topic||'').split(/[\s、。・,./]+/).forEach(term=>terms.push(term));
+  const words=String(question.note||'').match(/[一-龠ぁ-んァ-ヶA-Za-z0-9]{2,}/g)||[];
   words.forEach(word=>terms.push(word));
-  return [...new Set(terms.map(term=>term.trim()).filter(term=>term.length>=2&&!stopWords.has(term)))].slice(0,12);
+  return [...new Set(terms.map(t=>t.trim()).filter(t=>t.length>=2))].slice(0,12);
 }
 function excerptForTerms(text,terms){
   const normalized=String(text||'');
@@ -357,82 +400,96 @@ function excerptForTerms(text,terms){
     if(index>=0)break;
   }
   if(index<0)return normalized.slice(0,900);
-  const start=Math.max(0,index-220);
+  const start=Math.max(0,index-240);
   const end=Math.min(normalized.length,index+900);
-  return `${start>0?'…':''}${normalized.slice(start,end).trim()}${end<normalized.length?'…':''}`;
+  return `${start>0?'...':''}${normalized.slice(start,end).trim()}${end<normalized.length?'...':''}`;
 }
 async function findExplanation(){
   const question=getQuestionForm();
   const terms=searchTermsFromQuestion(question);
-  if(!terms.length){
-    setLectureStatus('分野または「何が分からなかったか」を入力してください。',true);
-    return;
-  }
+  if(!terms.length){setStatus('論点かメモを入力してください',true);return}
   const textMaterials=localMaterials.filter(item=>item.kind==='text'&&item.text);
   const ranked=textMaterials.map(item=>{
     const haystack=`${item.name}\n${item.text}`.toLowerCase();
     const hits=terms.filter(term=>haystack.includes(term.toLowerCase()));
-    return {item,hits,score:hits.reduce((sum,term)=>sum+Math.max(1,12-term.length),0)};
-  }).filter(result=>result.hits.length).sort((a,b)=>b.score-a.score).slice(0,3);
-  document.getElementById('viewer-caption').textContent=`検索語：${terms.join(' / ')}`;
-  document.getElementById('material-count').textContent=`${ranked.length}件`;
-  document.getElementById('lecture-tools-title').textContent=`${question.year||'過去問'} ${question.number||''} の関連解説`;
+    return {item,hits,score:hits.length};
+  }).filter(r=>r.score).sort((a,b)=>b.score-a.score).slice(0,4);
+  const result=document.getElementById('search-result');
   if(!ranked.length){
-    currentLectureSummary='';
-    document.getElementById('exam-summary').textContent=`関連する解説が見つかりませんでした。\n\n検索語：${terms.join('、')}\n\n教材テキストがまだ少ない場合は、該当分野の講義要点TXTを追加してください。`;
-    setLectureStatus('一致する要点教材がありません。',true);
-  }else{
-    currentLectureSummary=ranked.map(result=>`${result.item.name}\n${excerptForTerms(result.item.text,terms)}`).join('\n\n');
-    document.getElementById('exam-summary').innerHTML=ranked.map(result=>`<div class="explanation-source">
-      <h3>${escapeHTML(result.item.name)}　該当語：${escapeHTML(result.hits.join('、'))}</h3>
-      <div>${escapeHTML(excerptForTerms(result.item.text,terms))}</div>
-    </div>`).join('');
-    setLectureStatus(`${ranked.length}件の関連解説を表示しました。`);
-    todayCheck('career_survey_theory',true);
-  }
-  renderPdfsForTerms(terms);
-}
-function renderPdfsForTerms(terms=[]){
-  const pdfs=parsePdfLinks().map(pdf=>{
-    const lower=pdf.name.toLowerCase();
-    const score=terms.filter(term=>lower.includes(term.toLowerCase())).length;
-    return {...pdf,score};
-  }).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name,'ja'));
-  const pdfTabs=document.getElementById('pdf-tabs');
-  document.getElementById('pdf-count').textContent=`${pdfs.length}件`;
-  pdfTabs.innerHTML=pdfs.map((item,index)=>`<button class="tab${index===0?' active':''}" onclick="showPdf(${index})">${escapeHTML(item.name)}</button>`).join('');
-  window.currentPdfs=pdfs;
-  if(pdfs.length)showPdf(0);
-}
-async function saveQuestionResult(){
-  const question=getQuestionForm();
-  if(!question.topic&&!question.note){
-    setStatus('分野または分からなかった点を入力してください',true);
+    result.textContent=`関連する説明が見つかりませんでした。\n検索語: ${terms.join(' / ')}\n\n講義要点TXTやPDF抽出テキストを追加すると、ここから探せるようになります。`;
+    setStatus('一致する教材テキストがありません',true);
     return;
   }
-  const day=getDay(selectedDate);
-  if(!Array.isArray(day.v.questionResults))day.v.questionResults=[];
-  day.v.questionResults.push(question);
-  day.v.questionResults=day.v.questionResults.slice(-30);
-  day.c.career_error_log=true;
-  day.c.career_survey_questions=true;
-  try{await saveDay();setStatus('過去問結果を保存しました')}catch{setStatus('端末内に保存しました',true)}
-  render();
-}
-function todayCheck(id,value){
-  getDay(selectedDate).c[id]=value;
+  result.innerHTML=ranked.map(r=>`【${escapeHTML(r.item.name)}】\n該当語: ${escapeHTML(r.hits.join(' / '))}\n${escapeHTML(excerptForTerms(r.item.text,terms))}`).join('\n\n---\n\n');
+  getDay(selectedDate).c.study_written_20=true;
   localStorage.setItem('hrtrack_db_cache',JSON.stringify(DB));
+  setStatus(`${ranked.length}件の関連説明を表示しました`);
 }
-function renderWeaknessHistory(){
-  const el=document.getElementById('weakness-history');
-  const records=(getDay(selectedDate).v.questionResults||[]).slice(-5).reverse();
-  if(!records.length){el.innerHTML='<div class="hint">今日の誤答記録はまだありません。</div>';return}
-  const resultLabel={wrong:'不正解',unsure:'自信なし',correct:'理解して正解'};
-  el.innerHTML=`<div class="sub" style="margin-top:12px">今日の記録</div>${records.map(record=>`<div class="weakness-item">
-    <b>${escapeHTML(record.year||'年度未入力')} ${escapeHTML(record.number||'')}：${escapeHTML(record.topic||'分野未入力')}</b><br>
-    ${resultLabel[record.result]||record.result}${record.note?` / ${escapeHTML(record.note)}`:''}
-  </div>`).join('')}`;
+
+function coachContext(){
+  const day=getDay(selectedDate);
+  const tasks=taskListFor(selectedDate);
+  return {
+    page:'qualification-study',
+    targetDate:selectedDate,
+    phase:currentPhase(),
+    dailyTasks:tasks,
+    completedTasks:tasks.filter(t=>day.c[t.id]).map(t=>t.title),
+    questionResults:day.v.questionResults||[],
+    materialNames:localMaterials.map(m=>m.name).slice(0,80),
+    targets:{surveyor:SURVEYOR_TARGET,investigator:INVESTIGATOR_TARGET}
+  };
 }
+async function askCoach(){
+  const question=document.getElementById('coach-question').value.trim();
+  if(!question){setCoachStatus('相談内容を入力してください',true);return}
+  const mode=document.getElementById('coach-mode').value;
+  const answer=document.getElementById('coach-answer');
+  answer.style.display='block';
+  answer.textContent='相談中...';
+  setCoachStatus('');
+  try{
+    const response=await fetch('/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,question,context:coachContext()})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
+    answer.textContent=data.answer||'回答が空でした。';
+    setCoachStatus('相談を保存しました');
+    await loadCoachLogs();
+  }catch(error){
+    answer.textContent=`伴走相談でエラーが出ました。\n\n${error.message}`;
+    setCoachStatus('相談に失敗しました',true);
+  }
+}
+async function loadCoachLogs(){
+  const el=document.getElementById('coach-logs');
+  el.innerHTML='<div class="sub">読み込み中...</div>';
+  try{
+    const response=await fetch('/api/coach/logs');
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
+    const logs=(data.logs||[]).filter(log=>String(log.mode||'').startsWith('study')).slice(0,12);
+    if(!logs.length){el.innerHTML='<div class="sub">資格学習の相談履歴はまだありません。</div>';return}
+    el.innerHTML=logs.map(log=>`<div class="coach-log">
+      <b>${escapeHTML((log.created_at||'').replace('T',' '))} / ${escapeHTML(log.mode||'')}</b><br>
+      Q. ${escapeHTML(log.question||'')}<br>
+      <div style="margin-top:6px;white-space:pre-wrap">${escapeHTML(log.answer||'')}</div>
+      <button class="btn danger" type="button" style="margin-top:8px;padding:6px 9px" onclick="deleteCoachLog(${Number(log.id)})">削除</button>
+    </div>`).join('');
+  }catch(error){
+    el.innerHTML=`<div class="warning">相談履歴を読み込めませんでした: ${escapeHTML(error.message)}</div>`;
+  }
+}
+async function deleteCoachLog(id){
+  if(!confirm('この相談履歴を削除しますか？'))return;
+  await fetch(`/api/coach/logs/${id}`,{method:'DELETE'});
+  await loadCoachLogs();
+}
+function setCoachStatus(message,error=false){
+  const el=document.getElementById('coach-status');
+  el.textContent=message;
+  el.classList.toggle('warning',error);
+}
+
 function openMaterialDB(){
   return new Promise((resolve,reject)=>{
     const request=indexedDB.open('health-study-materials',1);
@@ -476,18 +533,11 @@ async function deleteMaterial(id){
   });
   await loadLocalMaterials();
 }
-function deleteUploadedMaterial(encodedId){
-  deleteMaterial(decodeURIComponent(encodedId));
-}
-function lectureNumberFromName(name){
-  const match=String(name).match(/(?:^|\D)(\d{3})(?:\D|$)/);
-  const number=match?Number(match[1]):null;
-  return number>=1&&number<=TOTAL_LECTURES?number:null;
-}
+function deleteUploadedMaterial(encodedId){deleteMaterial(decodeURIComponent(encodedId))}
 async function handleMaterialFiles(files){
   const accepted=[...files].filter(file=>/\.pdf$|\.(txt|md)$/i.test(file.name));
-  if(!accepted.length){setUploadStatus('PDF、TXT、Markdownファイルを選択してください。',true);return}
-  setUploadStatus(`${accepted.length}件を保存しています。`);
+  if(!accepted.length){setUploadStatus('PDF、TXT、Markdownを選択してください',true);return}
+  setUploadStatus(`${accepted.length}件を保存しています...`);
   try{
     for(const file of accepted){
       const kind=/\.pdf$/i.test(file.name)?'pdf':'text';
@@ -496,7 +546,6 @@ async function handleMaterialFiles(files){
         id,
         name:file.name,
         kind,
-        lectureNumber:lectureNumberFromName(file.name),
         text:kind==='text'?await file.text():'',
         blob:kind==='pdf'?file:null,
         size:file.size,
@@ -504,30 +553,42 @@ async function handleMaterialFiles(files){
       });
     }
     await loadLocalMaterials();
-    setUploadStatus(`${accepted.length}件を保存しました。すぐ学習に使えます。`);
-  }catch(error){setUploadStatus(`保存に失敗しました：${error.message}`,true)}
+    setUploadStatus(`${accepted.length}件を保存しました`);
+  }catch(error){setUploadStatus(`保存に失敗しました: ${error.message}`,true)}
 }
 async function loadLocalMaterials(){
   try{
     localMaterials=await getAllMaterials();
     localMaterials.sort((a,b)=>a.name.localeCompare(b.name,'ja'));
     renderUploadList();
-    renderMaterials();
-  }catch(error){setUploadStatus(`教材を読み込めませんでした：${error.message}`,true)}
-}
-async function getLocalLectureText(number){
-  const item=localMaterials.find(material=>material.kind==='text'&&material.lectureNumber===number);
-  return item?.text||'';
+    renderPdfTabs();
+  }catch(error){setUploadStatus(`教材を読み込めませんでした: ${error.message}`,true)}
 }
 function renderUploadList(){
+  document.getElementById('material-count').textContent=`${localMaterials.length}件`;
   const el=document.getElementById('upload-list');
-  if(!el)return;
-  if(!localMaterials.length){el.innerHTML='<div class="hint">アップロード済み教材はありません。</div>';return}
-  el.innerHTML=localMaterials.map(item=>`<div class="upload-item">
-    <span class="badge">${item.kind==='pdf'?'PDF':'文字'}</span>
-    <span class="upload-item-name">${escapeHTML(item.name)}${item.lectureNumber?`（講義${String(item.lectureNumber).padStart(3,'0')}）`:'（共通）'}</span>
-    <button type="button" onclick="deleteUploadedMaterial('${encodeURIComponent(item.id)}')">削除</button>
+  if(!localMaterials.length){el.innerHTML='<div class="sub" style="margin-top:10px">アップロード済み教材はありません。</div>';return}
+  el.innerHTML=localMaterials.map(item=>`<div class="material-item">
+    <span class="badge">${item.kind==='pdf'?'PDF':'TEXT'}</span>
+    <span class="material-name">${escapeHTML(item.name)}</span>
+    <button class="btn danger" type="button" style="padding:6px 9px" onclick="deleteUploadedMaterial('${encodeURIComponent(item.id)}')">削除</button>
   </div>`).join('');
+}
+function renderPdfTabs(){
+  const pdfs=localMaterials.filter(item=>item.kind==='pdf');
+  window.currentPdfs=pdfs;
+  const tabs=document.getElementById('pdf-tabs');
+  tabs.innerHTML=pdfs.map((item,index)=>`<button class="tab ${index===0?'active':''}" onclick="showPdf(${index})">${escapeHTML(item.name)}</button>`).join('');
+  if(pdfs.length)showPdf(0);
+  else document.getElementById('pdf-viewer').innerHTML='<div class="empty">PDFを追加するとここに表示します。</div>';
+}
+async function showPdf(index){
+  const item=window.currentPdfs[index];
+  document.querySelectorAll('#pdf-tabs .tab').forEach((tab,i)=>tab.classList.toggle('active',i===index));
+  const record=await getMaterialRecord(item.id);
+  if(currentPdfUrl)URL.revokeObjectURL(currentPdfUrl);
+  currentPdfUrl=record?.blob?URL.createObjectURL(record.blob):'';
+  document.getElementById('pdf-viewer').innerHTML=currentPdfUrl?`<iframe src="${escapeHTML(currentPdfUrl)}" loading="lazy"></iframe>`:'<div class="empty">PDFを読み込めませんでした。</div>';
 }
 function setUploadStatus(message,error=false){
   const el=document.getElementById('upload-status');
@@ -538,7 +599,7 @@ function setStatus(message,error=false){
   const el=document.getElementById('sync-status');
   el.textContent=message;
   el.classList.toggle('warning',error);
-  setTimeout(()=>el.textContent='',3500);
+  if(message)setTimeout(()=>{el.textContent=''},3500);
 }
 function moveDate(amount){const d=parseDate(selectedDate);d.setDate(d.getDate()+amount);setDate(localDateString(d))}
 function selectToday(){setDate(localDateString())}
@@ -564,6 +625,7 @@ async function init(){
   uploadBox.addEventListener('dragover',event=>event.preventDefault());
   uploadBox.addEventListener('drop',event=>{event.preventDefault();handleMaterialFiles(event.dataTransfer.files)});
   await loadLocalMaterials();
+  await loadCoachLogs();
 }
 init();
 </script>
