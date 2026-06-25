@@ -88,9 +88,23 @@ input[type=date]{min-height:42px}
 .catalog-groups{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .catalog-chip{border:1px solid var(--line);border-radius:999px;background:#fff;padding:6px 9px;font-size:11px;cursor:pointer;color:var(--text)}
 .catalog-chip.active{background:var(--green);border-color:var(--green);color:#fff}
+.linked-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}
+.linked-panel{border:1px solid var(--line);border-radius:7px;background:#fbfcfb;padding:10px;min-width:0}
+.linked-panel h3{font-size:13px;margin:0 0 8px;color:var(--green)}
+.linked-viewer{aspect-ratio:16/10;border:1px solid var(--line);border-radius:7px;background:#eef1ee;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.linked-viewer iframe,.linked-viewer video{width:100%;height:100%;border:0;background:#000}
+.linked-list{margin-top:8px}
+.linked-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;border-top:1px solid var(--line);padding:8px 0;font-size:12px;line-height:1.5}
+.linked-row:first-child{border-top:none}
+.linked-row b{display:block;overflow-wrap:anywhere}
+.linked-row span{display:block;color:var(--muted);overflow-wrap:anywhere;margin-top:2px}
+.today-plan{display:grid;gap:8px;margin-top:10px}
+.today-plan-item{border:1px solid var(--line);border-radius:7px;background:#fff;padding:10px;font-size:12px;line-height:1.55}
+.today-plan-item b{display:block;font-size:13px;color:var(--text)}
+.today-plan-item span{display:block;color:var(--muted);margin-top:3px}
 details{margin-top:12px}
 summary{cursor:pointer;font-weight:700;font-size:13px}
-@media(max-width:900px){.wrap{padding:14px}.grid,.phase-grid{grid-template-columns:1fr}.top{padding:12px 14px}.viewer{aspect-ratio:4/3}}
+@media(max-width:900px){.wrap{padding:14px}.grid,.phase-grid,.linked-layout{grid-template-columns:1fr}.top{padding:12px 14px}.viewer,.linked-viewer{aspect-ratio:4/3}}
 @media(max-width:620px){.form-row,.week-grid{grid-template-columns:1fr}.toolbar{align-items:stretch}.field{width:100%}}
 </style>
 </head>
@@ -112,6 +126,16 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
   <div class="grid">
     <section>
       <div class="card" id="daily-card"></div>
+      <div class="card" id="linked-study-card">
+        <div class="date-title">
+          <div>
+            <h2>今日の学習セット</h2>
+            <div class="sub">明後日開始のノルマに合わせて、見る動画と戻るPDFを自動で並べます。</div>
+          </div>
+          <span class="badge blue" id="linked-study-badge">読込中</span>
+        </div>
+        <div id="linked-study-content"><div class="sub">教材カタログを読み込み中...</div></div>
+      </div>
       <div class="card">
         <div class="date-title">
           <div>
@@ -243,7 +267,7 @@ summary{cursor:pointer;font-weight:700;font-size:13px}
 </main>
 
 <script>
-const PLAN_START='2026-06-26';
+const PLAN_START='2026-06-27';
 const SURVEYOR_TARGET='2027-05-16';
 const INVESTIGATOR_TARGET='2027-10-17';
 let DB={};
@@ -253,10 +277,13 @@ let localMaterials=[];
 let currentPdfUrl='';
 let materialCatalog={items:[],groups:[],root:''};
 let selectedCatalogCategory='';
+let currentLinkedPdfUrl='';
+let currentLinkedVideoUrl='';
 
 const PHASES=[
   {id:'prep',from:'2026-06-24',to:'2026-06-25',label:'準備期間',goal:'教材整理、PDF化方針、机上セットを決める'},
-  {id:'base',from:'2026-06-26',to:'2026-07-31',label:'助走・土台作り',goal:'測量士補の全体像、民法入口、定規・複素数の習慣化'},
+  {id:'prep2',from:'2026-06-26',to:'2026-06-26',label:'最終準備日',goal:'教材リンク確認、初日の開始位置を決める'},
+  {id:'base',from:'2026-06-27',to:'2026-07-31',label:'助走・土台作り',goal:'測量士補の全体像、民法入口、定規・複素数の習慣化'},
   {id:'survey1',from:'2026-08-01',to:'2026-09-30',label:'測量士補1周目',goal:'測量士補過去問1周、不登法・調査士法の全体像'},
   {id:'choice1',from:'2026-10-01',to:'2026-12-31',label:'調査士過去問開始',goal:'択一1周目、記述式の入口、書式ひな形'},
   {id:'survey2',from:'2027-01-01',to:'2027-04-30',label:'測量士補直前期',goal:'測量士補を合格圏へ。調査士は維持'},
@@ -270,6 +297,11 @@ const ROUTINES={
     {id:'study_prep_materials',time:'20分',title:'教材を3分類する',detail:'測量士補、調査士択一、記述・作図に分ける'},
     {id:'study_prep_pdf',time:'20分',title:'PDF化する順番を決める',detail:'まず測量士補過去問と調査士不登法から'},
     {id:'study_prep_place',time:'10分',title:'毎日の置き場所を作る',detail:'今日使う1冊、電卓、定規、メモを固定'}
+  ],
+  prep2:[
+    {id:'study_prep_linkcheck',time:'20分',title:'PDF・動画リンク確認',detail:'今日の学習セットでPDFと動画が開くか確認する'},
+    {id:'study_prep_firstday',time:'20分',title:'初日の教材を決める',detail:'測量士補総合講義と民法の開始位置を確認'},
+    {id:'study_prep_note',time:'10分',title:'記録欄を試す',detail:'弱点記録と伴走相談を1回使ってみる'}
   ],
   weekday:[
     {id:'study_survey_20',time:'20分',title:'測量士補',detail:'講義要点または過去問5問。計算日は手を動かす'},
@@ -303,15 +335,95 @@ function daysUntil(target){return Math.ceil((parseDate(target)-parseDate(selecte
 function taskListFor(value){
   const phase=currentPhase(value);
   if(phase.id==='prep')return ROUTINES.prep;
+  if(phase.id==='prep2')return ROUTINES.prep2;
   const dow=parseDate(value).getDay();
   return dow===0||dow===6?ROUTINES.weekend:ROUTINES.weekday;
 }
 function taskMinutes(tasks){
   return tasks.reduce((sum,item)=>sum+(Number(String(item.time).match(/\d+/)?.[0]||0)),0);
 }
+function dayIndexFromStart(value=selectedDate){
+  return Math.max(0,Math.floor((parseDate(value)-parseDate(PLAN_START))/(24*60*60*1000)));
+}
+const DAILY_MODULES=[
+  {key:'surveyor_text',label:'測量士補 総合講義',minutes:25,goal:'測量士補の全体像を1講義ずつ進める',pdf:['測量士補試験テキスト総合講義'],video:['10_測量士補\\04_講義動画','.mp4']},
+  {key:'minpo',label:'民法',minutes:25,goal:'民法は短時間でも毎週触れて忘却を防ぐ',pdf:['アガルート民法','民法-対照表','民法とその判例'],video:['00_対照表整理済み','民法','.mp4']},
+  {key:'futoho',label:'不動産登記法',minutes:30,goal:'調査士択一の主戦場。対照表順に動画とPDFを往復する',pdf:['N24合格総合講義-不動産登記法-対照表','総合講座_不動産登記法','不動産登記法　土地家屋市調査士法'],video:['00_不動産登記法_対照表整理済み','.mp4']},
+  {key:'surveyor_past',label:'測量士補 過去問',minutes:30,goal:'過去問を解いて、解説PDFで確認する',pdf:['測量士補試験2024過去問','測量士補試験3時間'],video:['10_測量士補','過去問','.mp4']},
+  {key:'choice_h17',label:'調査士 択一 H17-H25',minutes:35,goal:'古い年度で基礎論点を拾う',pdf:['過去問解説講座（択一）上巻','過去問択一'],video:['03_過去問','01_択一式_H17-H25','.mp4']},
+  {key:'choice_recent',label:'調査士 択一 H26-R05',minutes:35,goal:'近年の出題形式に慣れる',pdf:['過去問解説講座（択一）下巻','過去問講座（択一）R5'],video:['03_過去問','02_択一式_H26-H31','.mp4']},
+  {key:'complex',label:'複素数計算',minutes:25,goal:'記述式の計算処理を手で固める',pdf:['中山式複素数計算'],video:['07_複素数','.mp4']},
+  {key:'ruler',label:'定規の使い方',minutes:20,goal:'作図の手順を動画で確認して実際に手を動かす',pdf:['新定規の使い方'],video:['06_定規','.mp4']},
+  {key:'written',label:'記述式 土地・建物',minutes:45,goal:'答案構成だけでも毎週書く',pdf:['過去問解説講座_土地家屋調査士試験　記述','過去問講座（記述）'],video:['03_過去問','記述','.mp4']},
+  {key:'mock',label:'実践答練',minutes:45,goal:'時間配分と本番手順を作る',pdf:['実践答練'],video:['03_過去問','実践答練','.mp4']}
+];
+function moduleForDate(value=selectedDate){
+  const phase=currentPhase(value);
+  const dow=parseDate(value).getDay();
+  if(phase.id==='prep'||phase.id==='prep2')return {key:'prep',label:'リンク確認・開始準備',minutes:30,goal:'PDFと動画が開くか確認し、初日の教材を迷わない状態にする',pdf:['全体対応表','測量士補_合格設計図'],video:['00_対照表整理済み','.mp4']};
+  const idx=dayIndexFromStart(value);
+  if(idx===0)return DAILY_MODULES.find(m=>m.key==='surveyor_text');
+  if(idx===1)return DAILY_MODULES.find(m=>m.key==='minpo');
+  if(dow===0)return DAILY_MODULES.find(m=>m.key==='written');
+  if(dow===6)return DAILY_MODULES.find(m=>m.key==='choice_recent');
+  const phaseBoost={
+    base:['surveyor_text','minpo','futoho','complex','ruler'],
+    survey1:['surveyor_text','surveyor_past','futoho','complex','choice_h17'],
+    choice1:['choice_h17','futoho','minpo','written','complex'],
+    survey2:['surveyor_past','surveyor_text','choice_recent','complex','ruler'],
+    switch:['choice_recent','written','futoho','mock','complex'],
+    investigator:['written','choice_recent','futoho','mock','complex'],
+    final:['mock','written','choice_recent','futoho','complex']
+  };
+  const keys=phaseBoost[phase.id]||['surveyor_text','minpo','futoho','complex','choice_h17'];
+  const key=keys[idx%keys.length];
+  return DAILY_MODULES.find(m=>m.key===key)||DAILY_MODULES[0];
+}
+function textIncludesAll(item,terms){
+  const haystack=`${item.name} ${item.category} ${item.relativePath}`.toLowerCase();
+  return terms.every(term=>haystack.includes(String(term).toLowerCase()));
+}
+function findCatalogItems(terms,extensions=[],limit=8){
+  if(!terms?.length)return [];
+  const rows=materialCatalog.items.filter(item=>{
+    if(extensions.length&&!extensions.includes(item.extension))return false;
+    return textIncludesAll(item,terms);
+  });
+  const extRank={'.pdf':0,'.mp4':1,'.csv':2,'.url':3,'.txt':4,'.md':4};
+  const dupRank=item=>String(item.name).includes('__同番号')||String(item.name).match(/\(\d+\)/)?1:0;
+  const baseName=item=>String(item.name).replace(/__同番号\d+/,'').replace(/\s*\(\d+\)(?=\.mp4$)/,'').replace(/\s+\d+(?=\.mp4$)/,'');
+  return rows.sort((a,b)=>((extRank[a.extension]??9)-(extRank[b.extension]??9))||baseName(a).localeCompare(baseName(b),'ja')||dupRank(a)-dupRank(b)||String(a.relativePath).localeCompare(String(b.relativePath),'ja')).slice(0,limit);
+}
+function findAnyCatalogItems(termSets,extensions=[],limit=8){
+  const seen=new Set();
+  const rows=[];
+  for(const terms of termSets){
+    for(const item of findCatalogItems(Array.isArray(terms)?terms:[terms],extensions,limit)){
+      if(seen.has(item.path))continue;
+      seen.add(item.path);
+      rows.push(item);
+      if(rows.length>=limit)return rows;
+    }
+  }
+  return rows;
+}
+function todaysLinkedMaterials(value=selectedDate){
+  const module=moduleForDate(value);
+  const pdfTermSets=(module.pdf||[]).map(term=>Array.isArray(term)?term:[term]);
+  const videoTermSets=[module.video||[]];
+  if(module.key==='choice_recent')videoTermSets.push(['03_過去問','03_択一式_R01-R04','.mp4'],['03_過去問','04_択一式_R05以降','.mp4']);
+  if(module.key==='written')videoTermSets.push(['04_記述式_土地','.mp4'],['05_記述式_建物','.mp4']);
+  if(module.key==='prep')pdfTermSets.unshift(['00_PDF動画対応表','_全体対応表_概要.csv']);
+  return {
+    module,
+    pdfs:findAnyCatalogItems(pdfTermSets,['.pdf','.csv','.url'],4),
+    videos:findAnyCatalogItems(videoTermSets,['.mp4'],6)
+  };
+}
 
 function render(){
   renderDailyCard();
+  renderLinkedStudySet();
   renderProgress();
   renderWeaknessHistory();
   renderRecommendedMaterials();
@@ -349,6 +461,55 @@ function taskRow(task,checked){
     <span><b>${escapeHTML(task.title)}</b><span>${escapeHTML(task.detail)}</span></span>
     <span class="time">${escapeHTML(task.time)}</span>
   </label>`;
+}
+function renderLinkedStudySet(){
+  const badge=document.getElementById('linked-study-badge');
+  const el=document.getElementById('linked-study-content');
+  if(!badge||!el)return;
+  if(!materialCatalog.items.length){
+    badge.textContent='読込中';
+    el.innerHTML='<div class="sub">教材カタログを読み込み中です。</div>';
+    return;
+  }
+  const linked=todaysLinkedMaterials();
+  const module=linked.module;
+  badge.textContent=`${module.minutes}分`;
+  const pdf=linked.pdfs[0];
+  const video=linked.videos[0];
+  el.innerHTML=`
+    <div class="today-plan">
+      <div class="today-plan-item">
+        <b>${escapeHTML(module.label)}</b>
+        <span>${escapeHTML(module.goal)}</span>
+        <span>進め方: 先に過去問・要点を見て、分からない箇所だけPDFと動画に戻ります。動画は1本だけでも達成扱いにします。</span>
+      </div>
+    </div>
+    <div class="linked-layout">
+      <div class="linked-panel">
+        <h3>連動PDF</h3>
+        <div class="linked-viewer">${pdf?`<iframe src="${escapeHTML(pdf.fileUrl)}" loading="lazy"></iframe>`:'<div class="empty">対応PDFが見つかりません。</div>'}</div>
+        ${renderLinkedRows(linked.pdfs,'pdf')}
+      </div>
+      <div class="linked-panel">
+        <h3>今日の動画</h3>
+        <div class="linked-viewer">${video?`<video controls preload="metadata" src="${escapeHTML(video.fileUrl)}"></video>`:'<div class="empty">対応動画が見つかりません。</div>'}</div>
+        ${renderLinkedRows(linked.videos,'video')}
+      </div>
+    </div>`;
+}
+function renderLinkedRows(items,kind){
+  if(!items.length)return '<div class="sub" style="margin-top:8px">教材フォルダ連携の検索から手動で探してください。</div>';
+  return `<div class="linked-list">${items.map((item,index)=>`
+    <div class="linked-row">
+      <div>
+        <b>${escapeHTML(index+1)}. ${escapeHTML(item.name)}</b>
+        <span>${escapeHTML(item.relativePath)}</span>
+      </div>
+      <div class="catalog-actions">
+        <a class="btn" href="${escapeHTML(item.fileUrl)}" target="_blank" rel="noopener">開く</a>
+        <button class="btn" type="button" onclick="copyText('${encodeURIComponent(item.path)}','教材パスをコピーしました')">パス</button>
+      </div>
+    </div>`).join('')}</div>`;
 }
 function renderProgress(){
   const phase=currentPhase();
@@ -425,6 +586,7 @@ async function loadMaterialCatalog(){
     document.getElementById('catalog-count').textContent=`${materialCatalog.items.length}件`;
     document.getElementById('catalog-summary').textContent=`${materialCatalog.root||'教材フォルダ'} の内容を反映しています。`;
     renderCatalogGroups();
+    renderLinkedStudySet();
     renderRecommendedMaterials();
   }catch(error){
     document.getElementById('catalog-list').innerHTML=`<div class="warning">教材カタログを読み込めませんでした: ${escapeHTML(error.message)}<br>GitHubへ反映する場合は public/study-materials-catalog.json も一緒に置いてください。</div>`;
@@ -433,14 +595,13 @@ async function loadMaterialCatalog(){
 function preferredCategoriesForToday(){
   const phase=currentPhase();
   const tasks=taskListFor(selectedDate).map(task=>task.id);
-  const cats=[];
-  if(phase.id==='prep')cats.push('測量士補 / 計画','測量士補 / 基本テキスト','調査士 / 不登法・調査士法PDF');
-  if(['base','survey1','survey2','switch'].includes(phase.id))cats.push('測量士補 / 過去問','測量士補 / 基本テキスト','測量士補 / 直前対策','測量士補 / 試験要点TXT');
-  if(['choice1','investigator','final'].includes(phase.id))cats.push('調査士 / 択一過去問PDF','調査士 / 不登法・調査士法PDF','調査士 / 民法PDF','調査士 / 記述PDF');
-  if(tasks.includes('study_written_20')||tasks.includes('study_weekend_written'))cats.push('調査士 / 作図・複素数・書式PDF','調査士 / 記述式土地動画','調査士 / 記述式建物動画');
-  if(tasks.includes('study_survey_20'))cats.push('測量士補 / 講義動画');
-  if(tasks.includes('study_investigator_choice_25'))cats.push('調査士 / 不登法・調査士法動画','調査士 / 民法動画');
-  if(tasks.includes('study_weekend_questions'))cats.push('調査士 / 過去問動画','測量士補 / 過去問');
+  const cats=['00_PDF動画対応表'];
+  const module=moduleForDate(selectedDate);
+  if(['prep','prep2','base','survey1','survey2','switch'].includes(phase.id))cats.push('測量士補');
+  if(['minpo'].includes(module.key)||tasks.includes('study_investigator_choice_25'))cats.push('土地家屋調査士_民法','対照表整理済み_民法動画');
+  if(['futoho'].includes(module.key)||tasks.includes('study_investigator_choice_25'))cats.push('土地家屋調査士_不動産登記法_調査士法','対照表整理済み_不動産登記法動画');
+  if(['choice_h17','choice_recent','written','mock','complex','ruler'].includes(module.key)||tasks.includes('study_weekend_questions'))cats.push('土地家屋調査士');
+  if(tasks.includes('study_written_20')||tasks.includes('study_weekend_written'))cats.push('土地家屋調査士');
   return [...new Set(cats)];
 }
 function renderCatalogGroups(){
